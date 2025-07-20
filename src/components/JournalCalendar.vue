@@ -8,6 +8,9 @@ const props = defineProps({
   journals: Array
 })
 
+// Emits
+const emit = defineEmits(['navigateToJournal'])
+
 // 現在の日付状態
 const currentDate = ref(new Date())
 const selectedDate = ref(new Date()) // デフォルトで今日を選択
@@ -26,6 +29,11 @@ const dayNames = ['日', '月', '火', '水', '木', '金', '土']
 // 計算されたプロパティ
 const currentYear = computed(() => currentDate.value.getFullYear())
 const currentMonth = computed(() => currentDate.value.getMonth())
+
+// 今日の日付（比較用）
+const todayDateString = computed(() => {
+  return new Date().toISOString().split('T')[0]
+})
 
 // 現在表示中の月の日記データをマップ化
 const journalMap = computed(() => {
@@ -97,6 +105,9 @@ const changeMonth = (delta) => {
 const selectDate = (dayObj) => {
   if (!dayObj.isCurrentMonth) return
   
+  // 未来日は選択不可
+  if (dayObj.dateStr > todayDateString.value) return
+  
   selectedDate.value = dayObj.dateStr
   selectedJournal.value = dayObj.journal
   
@@ -107,6 +118,11 @@ const selectDate = (dayObj) => {
   }
 }
 
+// 日記作成ページに遷移
+const navigateToJournal = (dateStr) => {
+  emit('navigateToJournal', dateStr)
+}
+
 // 日付セルのクラス
 const getDayClass = (dayObj) => {
   const classes = ['calendar-day']
@@ -115,6 +131,11 @@ const getDayClass = (dayObj) => {
   if (dayObj.isToday) classes.push('today')
   if (dayObj.hasJournal) classes.push('has-journal')
   if (selectedDate.value === dayObj.dateStr) classes.push('selected')
+  
+  // 未来日は無効化
+  if (dayObj.dateStr > todayDateString.value) {
+    classes.push('future-date')
+  }
   
   // ステージレベルに応じたクラス
   if (dayObj.stageLevel !== null) {
@@ -201,10 +222,6 @@ const goToToday = () => {
           <h3 class="month-title">{{ currentYear }}年 {{ monthNames[currentMonth] }}</h3>
           <button @click="changeMonth(1)" class="nav-btn">›</button>
         </div>
-        
-        <div class="calendar-controls">
-          <button @click="goToToday" class="btn btn-secondary">今日</button>
-        </div>
       </div>
 
       <!-- 月の統計 -->
@@ -216,6 +233,9 @@ const goToToday = () => {
         <div class="stat-item">
           <span class="stat-label">達成率:</span>
           <span class="stat-value">{{ monthStats.percentage }}%</span>
+        </div>
+        <div class="calendar-controls">
+          <button @click="goToToday" class="btn btn-secondary">今日</button>
         </div>
       </div>
 
@@ -247,7 +267,7 @@ const goToToday = () => {
       <!-- ステージレベル凡例 -->
       <div class="legend">
         <h4>ステージレベル凡例:</h4>
-        <div class="legend-items">
+        <div class="legend-items-horizontal">
           <div class="legend-item">
             <div class="legend-dot" :style="{ backgroundColor: getStageColor(0) }"></div>
             <span>Stage 0: 正常</span>
@@ -316,8 +336,15 @@ const goToToday = () => {
       </div>
 
       <div v-else class="no-journal">
-        <p>この日には日記が記録されていません。</p>
-        <small>「今日の日記を書く」セクションから新しい日記を作成できます。</small>
+        <div v-if="selectedDate <= todayDateString">
+          <p>この日には日記が記録されていません。</p>
+          <button @click="navigateToJournal(selectedDate)" class="btn btn-primary write-journal-btn">
+            📝 日記を書く
+          </button>
+        </div>
+        <div v-else>
+          <p>未来日は選択できません。</p>
+        </div>
       </div>
     </div>
 
@@ -467,6 +494,13 @@ const goToToday = () => {
   color: white;
 }
 
+.calendar-day.future-date {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
 .day-number {
   font-weight: 600;
   font-size: 1rem;
@@ -498,7 +532,7 @@ const goToToday = () => {
   font-size: 0.9rem;
 }
 
-.legend-items {
+.legend-items-horizontal {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -608,6 +642,13 @@ const goToToday = () => {
   color: #4a5568;
 }
 
+.write-journal-btn {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
 .btn-delete {
   background: #ef4444;
   color: white;
@@ -670,7 +711,7 @@ const goToToday = () => {
     font-size: 0.875rem;
   }
 
-  .legend-items {
+  .legend-items-horizontal {
     flex-direction: column;
     gap: 0.5rem;
   }

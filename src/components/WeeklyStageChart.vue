@@ -25,11 +25,11 @@ const chartInstance = ref(null)
 const weeklyData = computed(() => {
   if (!props.journals || props.journals.length === 0) return []
   
-  // 過去12週間のデータを準備
+  // 過去8週間のデータを準備
   const weeks = []
   const today = new Date()
   
-  for (let i = 11; i >= 0; i--) {
+  for (let i = 7; i >= 0; i--) {
     const weekStart = new Date(today)
     weekStart.setDate(today.getDate() - (today.getDay() + 7 * i))
     weekStart.setHours(0, 0, 0, 0)
@@ -61,7 +61,7 @@ const weeklyData = computed(() => {
     
     weeks.push({
       weekNumber: i === 0 ? '今週' : `${i}週前`,
-      weekIndex: 11 - i,
+      weekIndex: 7 - i,
       startDate: weekStart,
       endDate: weekEnd,
       dateRange: `${formatDate(weekStart)} - ${formatDate(weekEnd)}`,
@@ -145,7 +145,7 @@ const drawChart = () => {
       plugins: {
         title: {
           display: true,
-          text: '週次ステージレベル推移（過去12週間）',
+          text: '週次ステージレベル推移（過去8週間）',
           font: {
             size: 16,
             weight: 'bold'
@@ -279,7 +279,6 @@ const statistics = computed(() => {
     averageStage: Math.round(average * 10) / 10,
     trend: trend,
     trendDirection: trend > 0 ? 'worsening' : trend < 0 ? 'improving' : 'stable',
-    analysisWeeks: validWeeks.length,
     totalWeeks: weeklyData.value.length
   }
 })
@@ -317,7 +316,7 @@ onMounted(() => {
   <div class="weekly-stage-chart">
     <div class="chart-header">
       <h3>📈 週次ステージ推移分析</h3>
-      <p>過去12週間のメンタルヘルストレンドを可視化します</p>
+      <p>過去8週間のメンタルヘルストレンドを可視化します</p>
     </div>
 
     <!-- 統計サマリー -->
@@ -335,8 +334,8 @@ onMounted(() => {
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">分析週数</div>
-        <div class="stat-value">{{ statistics.analysisWeeks }}/{{ statistics.totalWeeks }}週</div>
+        <div class="stat-label">総週数</div>
+        <div class="stat-value">{{ statistics.totalWeeks }}週</div>
       </div>
     </div>
 
@@ -355,8 +354,6 @@ onMounted(() => {
               <th>期間</th>
               <th>ステージレベル</th>
               <th>記録日数</th>
-              <th>信頼度</th>
-              <th>アクション</th>
             </tr>
           </thead>
           <tbody>
@@ -383,22 +380,6 @@ onMounted(() => {
                 <span v-else class="no-data">記録なし</span>
               </td>
               <td>{{ week.journalCount }}/7日</td>
-              <td>
-                <span v-if="week.stageLevel !== null">{{ week.confidence }}%</span>
-                <span v-else>-</span>
-              </td>
-              <td>
-                <button 
-                  v-if="week.journals.length > 0 && isOpenAIConnected"
-                  @click.stop="performWeeklyAnalysis(week)"
-                  :disabled="isLoading"
-                  class="btn btn-small"
-                >
-                  {{ isLoading ? '分析中...' : 'AI分析' }}
-                </button>
-                <span v-else-if="week.journals.length === 0" class="no-action">-</span>
-                <span v-else class="ai-disabled">AI接続なし</span>
-              </td>
             </tr>
           </tbody>
         </table>

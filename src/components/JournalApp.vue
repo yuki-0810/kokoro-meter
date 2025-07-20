@@ -20,6 +20,9 @@ const journals = ref([])
 // アクティブタブ（ボトムナビゲーション）
 const activeTab = ref('home') // 'home', 'write', 'calendar'
 
+// 日記作成時の選択日付
+const selectedJournalDate = ref(null)
+
 // 初期化処理
 onMounted(async () => {
   await checkUser()
@@ -74,6 +77,12 @@ const handleJournalSaved = async () => {
   activeTab.value = 'home'
 }
 
+// カレンダーから日記作成への遷移
+const handleNavigateToJournal = (dateStr) => {
+  selectedJournalDate.value = dateStr
+  activeTab.value = 'write'
+}
+
 // タブ切り替え
 const switchTab = (tabName) => {
   activeTab.value = tabName
@@ -110,6 +119,7 @@ const switchTab = (tabName) => {
             :journals="journals"
             :isOpenAIConnected="isOpenAIConnected"
             @journalSaved="handleJournalSaved"
+            :selectedJournalDate="selectedJournalDate"
           />
         </div>
 
@@ -118,6 +128,7 @@ const switchTab = (tabName) => {
           <JournalCalendar 
             :currentUser="currentUser" 
             :journals="journals"
+            @navigateToJournal="handleNavigateToJournal"
           />
         </div>
       </div>

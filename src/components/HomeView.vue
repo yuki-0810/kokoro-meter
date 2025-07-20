@@ -53,6 +53,27 @@ const stageDescription = computed(() => {
   return descriptions[currentStage.value] || '分析中...'
 })
 
+// ステージレベルの色を取得
+const getStageColor = (level) => {
+  const colors = {
+    0: '#38b2ac', // 緑
+    1: '#4299e1', // 青
+    2: '#ed8936', // オレンジ
+    3: '#e53e3e', // 赤
+    4: '#9f7aea'  // 紫
+  }
+  return colors[level] || '#e2e8f0'
+}
+
+// ステージ凡例データ
+const stageLegend = [
+  { level: 0, label: 'Stage 0: 正常', description: 'エネルギッシュで前向きな状態' },
+  { level: 1, label: 'Stage 1: 軽度疲労', description: '少し気力が低下している状態' },
+  { level: 2, label: 'Stage 2: 中度疲労', description: 'イライラや疲労感が増している状態' },
+  { level: 3, label: 'Stage 3: 重度疲労', description: '感情コントロールが困難な状態' },
+  { level: 4, label: 'Stage 4: 危険域', description: '専門的な支援が必要な状態' }
+]
+
 const todayJournal = computed(() => {
   if (!props.journals) return null
   const today = new Date().toISOString().split('T')[0]
@@ -167,6 +188,20 @@ onMounted(() => {
           <div v-if="stageAnalysis" class="stage-meta">
             <span>信頼度: {{ stageAnalysis.confidence }}%</span>
             <span>分析対象: {{ weeklyJournals.length }}日分</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ステージ凡例 -->
+      <div class="stage-legend">
+        <h4>ステージ凡例</h4>
+        <div class="legend-items">
+          <div v-for="stage in stageLegend" :key="stage.level" class="legend-item">
+            <div class="legend-dot" :style="{ backgroundColor: getStageColor(stage.level) }"></div>
+            <div class="legend-text">
+              <span class="legend-label">{{ stage.label }}</span>
+              <span class="legend-desc">{{ stage.description }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -325,6 +360,47 @@ onMounted(() => {
 .stage-meta {
   display: flex;
   gap: 1rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.stage-legend {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.stage-legend h4 {
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #4a5568;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-label {
+  font-weight: bold;
+}
+
+.legend-desc {
   font-size: 0.75rem;
   color: #6b7280;
 }

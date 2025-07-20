@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { supabase } from '../supabase.js'
 import { organizeJournalText } from '../openai.js'
 
@@ -7,7 +7,8 @@ import { organizeJournalText } from '../openai.js'
 const props = defineProps({
   currentUser: Object,
   journals: Array,
-  isOpenAIConnected: Boolean
+  isOpenAIConnected: Boolean,
+  selectedJournalDate: String
 })
 
 // Emits
@@ -19,15 +20,33 @@ const newJournalContent = ref('')
 const isLoading = ref(false)
 const message = ref('')
 const isVoiceInput = ref(false)
+const selectedDate = ref(new Date().toISOString().split('T')[0]) // 今日の日付
+const errorPopup = ref(false)
+const errorMessage = ref('')
 
-// 計算されたプロパティ
-const todayJournal = computed(() => {
-  if (!props.journals) return null
-  const today = new Date().toISOString().split('T')[0]
-  return props.journals.find(j => j.created_at.startsWith(today))
+// selectedJournalDateの変更を監視
+watch(() => props.selectedJournalDate, (newDate) => {
+  if (newDate) {
+    selectedDate.value = newDate
+    loadJournalForDate()
+  }
+}, { immediate: true })
+
+// 初期化
+onMounted(() => {
+  if (props.selectedJournalDate) {
+    selectedDate.value = props.selectedJournalDate
+  }
+  loadJournalForDate()
 })
 
-const hasWrittenToday = computed(() => !!todayJournal.value)
+// 計算されたプロパティ
+const selectedDateJournal = computed(() => {
+  if (!props.journals) return null
+  return props.journals.find(j => j.created_at.startsWith(selectedDate.value))
+})
+
+const hasWrittenToday = computed(() => !!selectedDateJournal.value)
 
 const currentTime = computed(() => {
   const hour = new Date().getHours()
@@ -36,20 +55,56 @@ const currentTime = computed(() => {
   return 'こんばんは'
 })
 
+const isSelectedDateToday = computed(() => {
+  const today = new Date().toISOString().split('T')[0]
+  return selectedDate.value === today
+})
+
+const inputModeText = computed(() => {
+  return isVoiceInput.value ? '音声入力モード（準備中）' : 'テキスト入力モード'
+})
+
+// 日付操作関数
+const changeDate = (delta) => {
+  const currentSelectedDate = new Date(selectedDate.value)
+  currentSelectedDate.setDate(currentSelectedDate.getDate() + delta)
+  
+  const newDateStr = currentSelectedDate.toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
+  
+  // 未来日は選択不可
+  if (newDateStr <= today) {
+    selectedDate.value = newDateStr
+    loadJournalForDate()
+  }
+}
+
+// 選択された日付の日記を読み込み
+const loadJournalForDate = () => {
+  const journal = selectedDateJournal.value
+  if (journal) {
+    newJournalTitle.value = journal.title
+    newJournalContent.value = journal.original_content || journal.content
+  } else {
+    newJournalTitle.value = ''
+    newJournalContent.value = ''
+  }
+}
+
 // 日記保存（AI整理付き）
 const saveJournal = async () => {
   if (!props.currentUser) {
-    message.value = 'ログインが必要です'
+    showError('ログインが必要です')
     return
   }
   
   if (!newJournalTitle.value || !newJournalContent.value) {
-    message.value = 'タイトルと内容を入力してください'
+    showError('タイトルと内容を入力してください')
     return
   }
   
   if (hasWrittenToday.value) {
-    message.value = '今日はすでに日記を書いています'
+    showError(`${selectedDate.value}はすでに日記を書いています`)
     return
   }
   
@@ -61,18 +116,24 @@ const saveJournal = async () => {
     // OpenAI接続時はAI整理を実行
     if (props.isOpenAIConnected) {
       message.value = 'AIが日記を整理しています...'
-      const organizeResult = await organizeJournalText(newJournalContent.value)
-      
-      if (organizeResult.success) {
-        organizedContent = organizeResult.data.organized_text
-        aiMetadata = {
-          original_length: newJournalContent.value.length,
-          organized_length: organizeResult.data.word_count,
-          detected_emotions: organizeResult.data.detected_emotions,
-          key_events: organizeResult.data.key_events,
-          ai_organized: true
+      try {
+        const organizeResult = await organizeJournalText(newJournalContent.value)
+        
+        if (organizeResult.success) {
+          organizedContent = organizeResult.data.organized_text
+          aiMetadata = {
+            original_length: newJournalContent.value.length,
+            organized_length: organizeResult.data.word_count,
+            detected_emotions: organizeResult.data.detected_emotions,
+            key_events: organizeResult.data.key_events,
+            ai_organized: true
+          }
+          message.value = 'AI整理完了！日記を保存しています...'
         }
-        message.value = 'AI整理完了！日記を保存しています...'
+      } catch (aiError) {
+        console.error('AI整理エラー:', aiError)
+        showError('AI整理に失敗しました。手動記録として保存します。')
+        // AI整理に失敗しても保存は続行
       }
     }
     
@@ -85,7 +146,7 @@ const saveJournal = async () => {
           original_content: newJournalContent.value,
           ai_metadata: aiMetadata,
           user_id: props.currentUser.id,
-          entry_date: new Date().toISOString().split('T')[0]
+          entry_date: selectedDate.value
         }
       ])
       .select()
@@ -94,29 +155,37 @@ const saveJournal = async () => {
     
     newJournalTitle.value = ''
     newJournalContent.value = ''
-    message.value = 'AI整理された日記を保存しました！'
+    message.value = aiMetadata ? 'AI整理された日記を保存しました！' : '日記を保存しました！'
     
     // 親コンポーネントに保存完了を通知
     emit('journalSaved')
     
   } catch (error) {
-    message.value = `保存エラー: ${error.message}`
+    showError(`保存エラー: ${error.message}`)
   } finally {
     isLoading.value = false
   }
 }
 
+// エラーポップアップ表示
+const showError = (msg) => {
+  errorMessage.value = msg
+  errorPopup.value = true
+  setTimeout(() => {
+    errorPopup.value = false
+  }, 3000)
+}
+
 // 音声入力切り替え（将来実装用）
 const toggleVoiceInput = () => {
   isVoiceInput.value = !isVoiceInput.value
-  message.value = isVoiceInput.value ? '音声入力機能は準備中です' : 'テキスト入力モードです'
 }
 
 // 今日の日記を削除
 const deleteTodayJournal = async () => {
-  if (!todayJournal.value || !props.currentUser) return
+  if (!selectedDateJournal.value || !props.currentUser) return
   
-  const confirmed = confirm('今日の日記を削除しますか？')
+  const confirmed = confirm(`${selectedDate.value}の日記を削除しますか？`)
   if (!confirmed) return
   
   isLoading.value = true
@@ -124,14 +193,15 @@ const deleteTodayJournal = async () => {
     const { error } = await supabase
       .from('journals')
       .delete()
-      .eq('id', todayJournal.value.id)
+      .eq('id', selectedDateJournal.value.id)
     
     if (error) throw error
     
-    message.value = '今日の日記を削除しました'
+    message.value = `${selectedDate.value}の日記を削除しました`
+    loadJournalForDate() // 日記を再読み込み
     emit('journalSaved') // 削除後もデータ更新のため
   } catch (error) {
-    message.value = `削除エラー: ${error.message}`
+    showError(`削除エラー: ${error.message}`)
   } finally {
     isLoading.value = false
   }
@@ -139,10 +209,10 @@ const deleteTodayJournal = async () => {
 
 // 今日の日記を編集
 const editTodayJournal = () => {
-  if (!todayJournal.value) return
+  if (!selectedDateJournal.value) return
   
-  newJournalTitle.value = todayJournal.value.title
-  newJournalContent.value = todayJournal.value.original_content || todayJournal.value.content
+  newJournalTitle.value = selectedDateJournal.value.title
+  newJournalContent.value = selectedDateJournal.value.original_content || selectedDateJournal.value.content
   
   // 既存の日記を削除してから新しく保存
   deleteTodayJournal()
@@ -151,10 +221,9 @@ const editTodayJournal = () => {
 
 <template>
   <div class="journal-entry">
-    <!-- ヘッダー -->
-    <div class="entry-header">
-      <h1>📝 日記を書く</h1>
-      <p>{{ currentTime }}！今日はどんな一日でしたか？</p>
+    <!-- エラーポップアップ -->
+    <div v-if="errorPopup" class="error-popup">
+      {{ errorMessage }}
     </div>
 
     <!-- 今日既に記録済みの場合 -->
@@ -162,27 +231,28 @@ const editTodayJournal = () => {
       <div class="completed-banner">
         <div class="banner-icon">✅</div>
         <div class="banner-content">
-          <h2>今日の日記完了！</h2>
-          <p>お疲れさまでした。記録を続けることが大切です。</p>
+          <h2>{{ selectedDate }}の日記完了！</h2>
+          <p v-if="isSelectedDateToday">お疲れさまでした。記録を続けることが大切です。</p>
+          <p v-else>過去の日記を確認できます。</p>
         </div>
       </div>
       
       <div class="journal-preview">
-        <h3>{{ todayJournal.title }}</h3>
-        <p class="journal-content">{{ todayJournal.content }}</p>
+        <h3>{{ selectedDateJournal.title }}</h3>
+        <p class="journal-content">{{ selectedDateJournal.content }}</p>
         
-        <div v-if="todayJournal.ai_metadata" class="ai-analysis">
+        <div v-if="selectedDateJournal.ai_metadata" class="ai-analysis">
           <div class="ai-badge">✨ AI整理済み</div>
           <div class="analysis-tags">
-            <div v-if="todayJournal.ai_metadata.detected_emotions" class="tag-group">
+            <div v-if="selectedDateJournal.ai_metadata.detected_emotions" class="tag-group">
               <span class="tag-label">感情:</span>
-              <span v-for="emotion in todayJournal.ai_metadata.detected_emotions" :key="emotion" class="emotion-tag">
+              <span v-for="emotion in selectedDateJournal.ai_metadata.detected_emotions" :key="emotion" class="emotion-tag">
                 {{ emotion }}
               </span>
             </div>
-            <div v-if="todayJournal.ai_metadata.key_events" class="tag-group">
+            <div v-if="selectedDateJournal.ai_metadata.key_events" class="tag-group">
               <span class="tag-label">出来事:</span>
-              <span v-for="event in todayJournal.ai_metadata.key_events" :key="event" class="event-tag">
+              <span v-for="event in selectedDateJournal.ai_metadata.key_events" :key="event" class="event-tag">
                 {{ event }}
               </span>
             </div>
@@ -202,14 +272,14 @@ const editTodayJournal = () => {
 
     <!-- 日記入力フォーム -->
     <div v-else class="entry-form">
-      <!-- AI機能の状態表示 -->
-      <div class="ai-status">
-        <div v-if="isOpenAIConnected" class="status-success">
-          ✨ AI整理機能が利用できます
+      <!-- 日付選択 -->
+      <div class="date-selector">
+        <button @click="changeDate(-1)" class="date-btn" :disabled="isLoading">‹</button>
+        <div class="selected-date">
+          <h2>{{ selectedDate }}</h2>
+          <span class="date-label">{{ isSelectedDateToday ? '今日' : '過去の日記' }}</span>
         </div>
-        <div v-else class="status-info">
-          📝 手動記録モード（AI整理は利用できません）
-        </div>
+        <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= new Date().toISOString().split('T')[0]">›</button>
       </div>
 
       <!-- 音声/テキスト切り替え -->
@@ -217,6 +287,7 @@ const editTodayJournal = () => {
         <button @click="toggleVoiceInput" :class="['mode-btn', { active: isVoiceInput }]">
           {{ isVoiceInput ? '🎤 音声入力' : '⌨️ テキスト入力' }}
         </button>
+        <div class="mode-status">{{ inputModeText }}</div>
       </div>
       
       <!-- タイトル入力 -->
@@ -238,7 +309,7 @@ const editTodayJournal = () => {
         <textarea 
           id="content"
           v-model="newJournalContent" 
-          placeholder="今日の出来事、気持ち、考えたことを自由に書いてください。AIが読みやすく整理します..."
+          placeholder="今日の出来事、気持ち、考えたことを自由に書いてください..."
           class="form-textarea"
           rows="8"
           :disabled="isLoading"
@@ -253,7 +324,6 @@ const editTodayJournal = () => {
         class="btn btn-primary save-btn"
       >
         <span v-if="isLoading">{{ message || '保存中...' }}</span>
-        <span v-else-if="isOpenAIConnected">✨ AI整理して保存</span>
         <span v-else>📝 保存</span>
       </button>
     </div>
@@ -576,6 +646,75 @@ const editTodayJournal = () => {
   color: #2c5282;
   text-align: center;
   font-size: 0.875rem;
+}
+
+.date-selector {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.date-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #4a5568;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s;
+}
+
+.date-btn:hover:not(:disabled) {
+  color: #3b82f6;
+}
+
+.date-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selected-date {
+  text-align: center;
+  flex-grow: 1;
+}
+
+.selected-date h2 {
+  margin: 0 0 0.25rem 0;
+  color: #2d3748;
+  font-size: 1.25rem;
+}
+
+.date-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.mode-status {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #4a5568;
+  margin-top: 0.5rem;
+}
+
+.error-popup {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 10px 20px;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
+  text-align: center;
 }
 
 @media (max-width: 768px) {
