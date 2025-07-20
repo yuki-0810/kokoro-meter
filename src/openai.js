@@ -13,6 +13,32 @@ export const openai = new OpenAI({
   dangerouslyAllowBrowser: true // フロントエンド使用のため（本番では要注意）
 })
 
+// JSON解析のヘルパー関数
+const parseJSONResponse = (responseText) => {
+  try {
+    // マークダウンコードブロックの除去
+    let cleanedText = responseText.trim()
+    
+    // ```json と ``` を除去
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.replace(/^```json\s*/, '')
+    }
+    if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/^```\s*/, '')
+    }
+    if (cleanedText.endsWith('```')) {
+      cleanedText = cleanedText.replace(/\s*```$/, '')
+    }
+    
+    // JSONパース実行
+    return JSON.parse(cleanedText)
+  } catch (error) {
+    console.error('JSON解析エラー:', error)
+    console.error('レスポンステキスト:', responseText)
+    throw new Error(`JSON解析に失敗しました: ${error.message}`)
+  }
+}
+
 // メンタルステージ分析用プロンプト
 const STAGE_ANALYSIS_PROMPT = `
 あなたは心理カウンセラーです。ユーザーの日記内容を分析し、メンタルステージを5段階で判定してください。
@@ -31,8 +57,9 @@ const STAGE_ANALYSIS_PROMPT = `
 4. 睡眠・身体症状の言及
 5. 未来への展望
 
-## 出力形式：
-必ずJSON形式で以下の構造で回答してください：
+## 重要：出力形式
+必ず以下のJSONフォーマットで回答してください。マークダウンのコードブロック（\`\`\`json）は使用せず、純粋なJSONのみを出力してください：
+
 {
   "stage": 数値(0-4),
   "confidence": 数値(0-100),
@@ -72,7 +99,9 @@ const ACTIVE_REST_PROMPT = `
 現在のステージ：Stage {stage}
 時間帯：{timeOfDay}
 
-以下の形式で3つの具体的提案をしてください：
+## 重要：出力形式
+必ず以下のJSONフォーマットで回答してください。マークダウンのコードブロック（\`\`\`json）は使用せず、純粋なJSONのみを出力してください：
+
 {
   "recommendations": [
     {
@@ -98,7 +127,9 @@ const JOURNAL_ORGANIZE_PROMPT = `
 4. 元の意味や感情は一切変更しない
 5. 追加の解釈や推測は行わない
 
-## 出力形式：
+## 重要：出力形式
+必ず以下のJSONフォーマットで回答してください。マークダウンのコードブロック（\`\`\`json）は使用せず、純粋なJSONのみを出力してください：
+
 {
   "organized_text": "整理された日記テキスト",
   "word_count": 文字数,
@@ -151,7 +182,7 @@ export const organizeJournalText = async (rawText) => {
       temperature: 0.3
     })
 
-    const result = JSON.parse(response.choices[0].message.content)
+    const result = parseJSONResponse(response.choices[0].message.content)
     return {
       success: true,
       data: result
@@ -187,7 +218,7 @@ export const analyzeJournalForStage = async (journalTexts, useHighAccuracy = fal
       temperature: 0.1
     })
 
-    const result = JSON.parse(response.choices[0].message.content)
+    const result = parseJSONResponse(response.choices[0].message.content)
     
     // Stage 3以上の場合、o3で二重チェック
     if (result.stage >= 3 && !useHighAccuracy) {
@@ -230,7 +261,7 @@ export const generateActiveRestRecommendations = async (stage, timeOfDay = 'morn
       temperature: 0.7
     })
 
-    const result = JSON.parse(response.choices[0].message.content)
+    const result = parseJSONResponse(response.choices[0].message.content)
     return {
       success: true,
       data: result
