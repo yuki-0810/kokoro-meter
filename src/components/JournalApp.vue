@@ -7,6 +7,7 @@ import {
   analyzeJournalForStage, 
   generateActiveRestRecommendations 
 } from '../openai.js'
+import JournalCalendar from './JournalCalendar.vue'
 
 // リアクティブ状態
 const currentUser = ref(null)
@@ -33,6 +34,9 @@ const weeklyJournals = ref([])
 
 // アクティブレスト提案
 const activeRestRecommendations = ref(null)
+
+// ビュー切り替え
+const activeView = ref('record') // 'record' または 'calendar'
 
 // 計算されたプロパティ
 const todayJournal = computed(() => {
@@ -307,134 +311,168 @@ const deleteJournal = async (id) => {
         </div>
       </div>
 
-      <!-- 現在のメンタルステージ表示 -->
-      <div v-if="currentStage !== null" class="current-stage">
-        <h3>📊 現在のメンタルステージ</h3>
-        <div class="stage-display">
-          <div class="stage-circle" :style="{ backgroundColor: stageColor }">
-            <span class="stage-number">{{ currentStage }}</span>
-          </div>
-          <div class="stage-info">
-            <h4>Stage {{ currentStage }}: {{ stageDescription }}</h4>
-            <p v-if="stageAnalysis">信頼度: {{ stageAnalysis.confidence }}%</p>
-            <div v-if="stageAnalysis && stageAnalysis.emergency" class="emergency-warning">
-              ⚠️ 専門機関への相談を強く推奨します
-            </div>
-          </div>
-        </div>
-        
-        <!-- 分析詳細 -->
-        <div v-if="stageAnalysis" class="analysis-details">
-          <h5>分析理由:</h5>
-          <ul>
-            <li v-for="reason in stageAnalysis.reasons" :key="reason">{{ reason }}</li>
-          </ul>
-          <p><strong>検出キーワード:</strong> {{ stageAnalysis.keywords.join(', ') }}</p>
-          <small>分析モデル: {{ stageAnalysis.model_used }} | {{ new Date(stageAnalysis.analysis_date).toLocaleString('ja-JP') }}</small>
-        </div>
-      </div>
-
-      <!-- アクティブレスト提案 -->
-      <div v-if="activeRestRecommendations" class="active-rest">
-        <h3>🎯 あなたへのアクティブレスト提案</h3>
-        <div class="recommendations-grid">
-          <div v-for="rec in activeRestRecommendations.recommendations" :key="rec.title" class="rec-card">
-            <h4>{{ rec.title }}</h4>
-            <div class="rec-meta">
-              <span class="rec-type">{{ rec.type }}</span>
-              <span class="rec-duration">{{ rec.duration }}</span>
-            </div>
-            <p>{{ rec.description }}</p>
-            <p v-if="rec.materials"><strong>必要なもの:</strong> {{ rec.materials }}</p>
-          </div>
-        </div>
-        
-        <div v-if="activeRestRecommendations.emergency_message" class="emergency-message">
-          ⚠️ {{ activeRestRecommendations.emergency_message }}
-        </div>
-      </div>
-
-      <!-- 今日の日記入力 -->
-      <div class="journal-entry">
-        <h3>📝 {{ hasWrittenToday ? '今日の日記（記録済み）' : '今日の日記を書く' }}</h3>
-        
-        <div v-if="hasWrittenToday" class="today-journal">
-          <div class="journal-card">
-            <h4>{{ todayJournal.title }}</h4>
-            <p>{{ todayJournal.content }}</p>
-            <small>{{ new Date(todayJournal.created_at).toLocaleString('ja-JP') }}</small>
-            <div v-if="todayJournal.ai_metadata" class="ai-badge">
-              ✨ AI整理済み
-            </div>
-          </div>
-        </div>
-        
-        <div v-else class="entry-form">
-          <div class="form-header">
-            <button @click="toggleVoiceInput" :class="['voice-btn', { active: isVoiceInput }]">
-              {{ isVoiceInput ? '🎤 音声入力' : '⌨️ テキスト入力' }}
-            </button>
-          </div>
-          
-          <input 
-            v-model="newJournalTitle" 
-            type="text" 
-            placeholder="今日のタイトル (例: 忙しい一日、リラックスした午後)"
-            class="form-input"
-          />
-          
-          <textarea 
-            v-model="newJournalContent" 
-            placeholder="今日あったこと、感じたことを自由に書いてください。AIが読みやすく整理します..."
-            class="form-textarea"
-            rows="6"
-          ></textarea>
-          
-          <button @click="saveJournal" :disabled="isLoading" class="btn btn-primary">
-            {{ isLoading ? '保存中...' : 'AI整理して保存' }}
-          </button>
-        </div>
-      </div>
-
-      <!-- 週間分析ボタン -->
-      <div class="analysis-section">
-        <h3>🧠 週間メンタル分析</h3>
-        <p>過去7日間の日記 {{ weeklyJournals.length }} 件を分析します</p>
+      <!-- ビュー切り替えタブ -->
+      <div class="view-tabs">
         <button 
-          @click="analyzeWeeklyMentalStage" 
-          :disabled="isLoading || weeklyJournals.length === 0 || !isOpenAIConnected"
-          class="btn btn-secondary"
+          @click="activeView = 'record'" 
+          :class="['tab-btn', { active: activeView === 'record' }]"
         >
-          {{ isLoading ? '分析中...' : 'メンタルステージを分析' }}
+          📝 日記記録・分析
+        </button>
+        <button 
+          @click="activeView = 'calendar'" 
+          :class="['tab-btn', { active: activeView === 'calendar' }]"
+        >
+          📅 カレンダー表示
         </button>
       </div>
 
-      <!-- 過去の日記一覧 -->
-      <div class="journal-history">
-        <h3>📚 過去の日記 ({{ journals.length }} 件)</h3>
-        
-        <div v-if="journals.length === 0" class="no-journals">
-          <p>まだ日記がありません。今日から始めてみましょう！</p>
-        </div>
-        
-        <div v-else class="journals-list">
-          <div v-for="journal in journals" :key="journal.id" class="journal-item">
-            <div class="journal-header">
-              <h4>{{ journal.title }}</h4>
-              <small>{{ new Date(journal.created_at).toLocaleString('ja-JP') }}</small>
-              <button @click="deleteJournal(journal.id)" class="btn-delete">削除</button>
+      <!-- 日記記録・分析ビュー -->
+      <div v-if="activeView === 'record'" class="record-view">
+        <!-- 現在のメンタルステージ表示 -->
+        <div v-if="currentStage !== null" class="current-stage">
+          <h3>📊 現在のメンタルステージ</h3>
+          <div class="stage-display">
+            <div class="stage-circle" :style="{ backgroundColor: stageColor }">
+              <span class="stage-number">{{ currentStage }}</span>
             </div>
-            <p>{{ journal.content }}</p>
-            
-            <div v-if="journal.ai_metadata" class="ai-metadata">
-              <div class="ai-badge">✨ AI整理済み</div>
-              <div class="metadata-details">
-                <span>感情: {{ journal.ai_metadata.detected_emotions?.join(', ') || 'なし' }}</span>
-                <span>出来事: {{ journal.ai_metadata.key_events?.join(', ') || 'なし' }}</span>
+            <div class="stage-info">
+              <h4>Stage {{ currentStage }}: {{ stageDescription }}</h4>
+              <p v-if="stageAnalysis">信頼度: {{ stageAnalysis.confidence }}%</p>
+              <div v-if="stageAnalysis && stageAnalysis.emergency" class="emergency-warning">
+                ⚠️ 専門機関への相談を強く推奨します
               </div>
             </div>
           </div>
+          
+          <!-- 分析詳細 -->
+          <div v-if="stageAnalysis" class="analysis-details">
+            <h5>分析理由:</h5>
+            <ul>
+              <li v-for="reason in stageAnalysis.reasons" :key="reason">{{ reason }}</li>
+            </ul>
+            <p><strong>検出キーワード:</strong> {{ stageAnalysis.keywords.join(', ') }}</p>
+            <small>分析モデル: {{ stageAnalysis.model_used }} | {{ new Date(stageAnalysis.analysis_date).toLocaleString('ja-JP') }}</small>
+          </div>
         </div>
+
+        <!-- アクティブレスト提案 -->
+        <div v-if="activeRestRecommendations" class="active-rest">
+          <h3>🎯 あなたへのアクティブレスト提案</h3>
+          <div class="recommendations-grid">
+            <div v-for="rec in activeRestRecommendations.recommendations" :key="rec.title" class="rec-card">
+              <h4>{{ rec.title }}</h4>
+              <div class="rec-meta">
+                <span class="rec-type">{{ rec.type }}</span>
+                <span class="rec-duration">{{ rec.duration }}</span>
+              </div>
+              <p>{{ rec.description }}</p>
+              <p v-if="rec.materials"><strong>必要なもの:</strong> {{ rec.materials }}</p>
+            </div>
+          </div>
+          
+          <div v-if="activeRestRecommendations.emergency_message" class="emergency-message">
+            ⚠️ {{ activeRestRecommendations.emergency_message }}
+          </div>
+        </div>
+
+        <!-- 今日の日記入力 -->
+        <div class="journal-entry">
+          <h3>📝 {{ hasWrittenToday ? '今日の日記（記録済み）' : '今日の日記を書く' }}</h3>
+          
+          <div v-if="hasWrittenToday" class="today-journal">
+            <div class="journal-card">
+              <h4>{{ todayJournal.title }}</h4>
+              <p>{{ todayJournal.content }}</p>
+              <small>{{ new Date(todayJournal.created_at).toLocaleString('ja-JP') }}</small>
+              <div v-if="todayJournal.ai_metadata" class="ai-badge">
+                ✨ AI整理済み
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="entry-form">
+            <div class="form-header">
+              <button @click="toggleVoiceInput" :class="['voice-btn', { active: isVoiceInput }]">
+                {{ isVoiceInput ? '🎤 音声入力' : '⌨️ テキスト入力' }}
+              </button>
+            </div>
+            
+            <input 
+              v-model="newJournalTitle" 
+              type="text" 
+              placeholder="今日のタイトル (例: 忙しい一日、リラックスした午後)"
+              class="form-input"
+            />
+            
+            <textarea 
+              v-model="newJournalContent" 
+              placeholder="今日あったこと、感じたことを自由に書いてください。AIが読みやすく整理します..."
+              class="form-textarea"
+              rows="6"
+            ></textarea>
+            
+            <button @click="saveJournal" :disabled="isLoading" class="btn btn-primary">
+              {{ isLoading ? '保存中...' : 'AI整理して保存' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 週間分析ボタン -->
+        <div class="analysis-section">
+          <h3>🧠 週間メンタル分析</h3>
+          <p>過去7日間の日記 {{ weeklyJournals.length }} 件を分析します</p>
+          <button 
+            @click="analyzeWeeklyMentalStage" 
+            :disabled="isLoading || weeklyJournals.length === 0 || !isOpenAIConnected"
+            class="btn btn-secondary"
+          >
+            {{ isLoading ? '分析中...' : 'メンタルステージを分析' }}
+          </button>
+        </div>
+
+        <!-- 過去の日記一覧 -->
+        <div class="journal-history">
+          <h3>📚 過去の日記 ({{ journals.length }} 件)</h3>
+          
+          <div v-if="journals.length === 0" class="no-journals">
+            <p>まだ日記がありません。今日から始めてみましょう！</p>
+          </div>
+          
+          <div v-else class="journals-list">
+            <div v-for="journal in journals.slice(0, 5)" :key="journal.id" class="journal-item">
+              <div class="journal-header">
+                <h4>{{ journal.title }}</h4>
+                <small>{{ new Date(journal.created_at).toLocaleString('ja-JP') }}</small>
+                <button @click="deleteJournal(journal.id)" class="btn-delete">削除</button>
+              </div>
+              <p>{{ journal.content }}</p>
+              
+              <div v-if="journal.ai_metadata" class="ai-metadata">
+                <div class="ai-badge">✨ AI整理済み</div>
+                <div class="metadata-details">
+                  <span>感情: {{ journal.ai_metadata.detected_emotions?.join(', ') || 'なし' }}</span>
+                  <span>出来事: {{ journal.ai_metadata.key_events?.join(', ') || 'なし' }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="journals.length > 5" class="view-more">
+              <p>さらに {{ journals.length - 5 }} 件の日記があります</p>
+              <button @click="activeView = 'calendar'" class="btn btn-secondary">
+                📅 カレンダーで全ての日記を確認
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- カレンダー表示ビュー -->
+      <div v-if="activeView === 'calendar'" class="calendar-view">
+        <JournalCalendar 
+          :currentUser="currentUser" 
+          :journals="journals"
+        />
       </div>
 
       <!-- ステータスメッセージ -->
@@ -477,6 +515,35 @@ const deleteJournal = async (id) => {
   background: #fef3cd;
   color: #92400e;
   border: 1px solid #fbbf24;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tab-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  background: transparent;
+  color: #4a5568;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+  color: #2d3748;
+  background: #f7fafc;
+}
+
+.tab-btn.active {
+  color: #3182ce;
+  border-bottom-color: #3182ce;
+  background: #ebf8ff;
 }
 
 .current-stage {
@@ -731,6 +798,19 @@ const deleteJournal = async (id) => {
   color: #4a5568;
 }
 
+.view-more {
+  text-align: center;
+  padding: 1.5rem;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.view-more p {
+  color: #4a5568;
+  margin-bottom: 1rem;
+}
+
 .status-message {
   margin-top: 1rem;
   padding: 0.75rem;
@@ -774,6 +854,21 @@ const deleteJournal = async (id) => {
 }
 
 @media (max-width: 768px) {
+  .view-tabs {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .tab-btn {
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 0;
+  }
+  
+  .tab-btn.active {
+    border-left: 4px solid #3182ce;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  
   .stage-display {
     flex-direction: column;
     text-align: center;
