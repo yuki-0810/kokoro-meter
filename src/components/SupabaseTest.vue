@@ -328,11 +328,14 @@ onMounted(() => {
     <div class="sql-section">
       <h3>📊 テーブル作成SQL</h3>
       <p>以下のSQLをSupabase SQLエディタで実行してください:</p>
-      <pre class="sql-code">-- ジャーナルテーブル作成
+      <pre class="sql-code">-- ✨ 拡張ジャーナルテーブル作成（AI機能対応）
 CREATE TABLE journals (
   id BIGSERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
+  original_content TEXT, -- AI整理前のオリジナルテキスト
+  ai_metadata JSONB, -- AI分析結果（感情、出来事、統計等）
+  entry_date DATE DEFAULT CURRENT_DATE, -- 日記の対象日
   user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -352,7 +355,55 @@ CREATE POLICY "Users can update own journals" ON journals
   FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own journals" ON journals
-  FOR DELETE USING (auth.uid() = user_id);</pre>
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- 📊 メンタルステージ分析結果テーブル（将来拡張用）
+CREATE TABLE mental_stage_analysis (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  stage_level INTEGER NOT NULL CHECK (stage_level >= 0 AND stage_level <= 4),
+  confidence_score INTEGER CHECK (confidence_score >= 0 AND confidence_score <= 100),
+  analysis_period DATERANGE NOT NULL, -- 分析対象期間
+  keywords TEXT[], -- 検出キーワード
+  reasons TEXT[], -- 判定理由
+  emergency_flag BOOLEAN DEFAULT FALSE,
+  model_used TEXT, -- 使用したAIモデル
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- メンタルステージ分析テーブルのRLS設定
+ALTER TABLE mental_stage_analysis ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own analysis" ON mental_stage_analysis
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own analysis" ON mental_stage_analysis
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- 📅 便利なビュー作成（週間ジャーナル）
+CREATE VIEW weekly_journals AS
+SELECT 
+  j.*,
+  EXTRACT(WEEK FROM entry_date) as week_number,
+  EXTRACT(YEAR FROM entry_date) as year_number
+FROM journals j
+WHERE j.entry_date >= CURRENT_DATE - INTERVAL '7 days';
+
+-- 🔍 インデックス作成（パフォーマンス向上）
+CREATE INDEX idx_journals_user_date ON journals(user_id, entry_date DESC);
+CREATE INDEX idx_journals_entry_date ON journals(entry_date);
+CREATE INDEX idx_mental_analysis_user_period ON mental_stage_analysis(user_id, analysis_period);</pre>
+      
+      <div class="sql-note">
+        <h4>📝 新機能について</h4>
+        <ul>
+          <li><strong>AI整理:</strong> original_content に元テキスト、content に整理済みテキスト保存</li>
+          <li><strong>AI分析結果:</strong> ai_metadata に感情・出来事・統計をJSON形式で保存</li>
+          <li><strong>日記日付:</strong> entry_date で日記の対象日を管理（1日1記事制限）</li>
+          <li><strong>メンタル分析:</strong> mental_stage_analysis テーブルで週間分析結果を記録</li>
+          <li><strong>パフォーマンス:</strong> インデックスで高速検索をサポート</li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -561,6 +612,27 @@ CREATE POLICY "Users can delete own journals" ON journals
   font-size: 0.875rem;
   line-height: 1.5;
   white-space: pre;
+}
+
+.sql-note {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #4a5568;
+}
+
+.sql-note h4 {
+  color: #e2e8f0;
+  margin-bottom: 0.75rem;
+}
+
+.sql-note ul {
+  color: #a0aec0;
+  line-height: 1.6;
+  padding-left: 1.5rem;
+}
+
+.sql-note li {
+  margin-bottom: 0.5rem;
 }
 
 @media (max-width: 768px) {

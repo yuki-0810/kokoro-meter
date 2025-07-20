@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import SupabaseTest from './SupabaseTest.vue'
+import JournalApp from './JournalApp.vue'
 
 const appTitle = ref('ココロメーター')
 const subtitle = ref('メンタルステージ可視化 × アクティブレスト')
-const activeTab = ref('home') // 'home' または 'test'
+const activeTab = ref('home') // 'home', 'journal', 'test'
 
 const switchTab = (tab) => {
   activeTab.value = tab
@@ -25,6 +26,12 @@ const switchTab = (tab) => {
             :class="['tab-btn', { active: activeTab === 'home' }]"
           >
             🏠 ホーム
+          </button>
+          <button 
+            @click="switchTab('journal')" 
+            :class="['tab-btn', { active: activeTab === 'journal' }]"
+          >
+            📝 AIジャーナル
           </button>
           <button 
             @click="switchTab('test')" 
@@ -55,21 +62,21 @@ const switchTab = (tab) => {
             
             <div class="features-grid">
               <div class="feature-card">
-                <h3>📝 今日の気持ちを記録</h3>
-                <p>日記やつぶやきを入力すると、自動でメンタルステージを分析します</p>
-                <button class="btn btn-primary">記録を開始</button>
+                <h3>📝 AIジャーナル</h3>
+                <p>日記をAIが自動で整理し、メンタルステージを分析。1週間ごとの変化を追跡します</p>
+                <button @click="switchTab('journal')" class="btn btn-primary">ジャーナルを開始</button>
               </div>
               
               <div class="feature-card">
                 <h3>🎯 アクティブレスト提案</h3>
-                <p>あなたのステージに合わせた回復方法を具体的に提案します</p>
-                <button class="btn btn-secondary">提案を見る</button>
+                <p>7つの休養モデルに基づき、あなたのステージに最適化された回復方法を提案</p>
+                <button @click="switchTab('journal')" class="btn btn-secondary">提案を見る</button>
               </div>
               
               <div class="feature-card">
                 <h3>📊 ステージ推移分析</h3>
-                <p>過去30日間のメンタルステージの変化を可視化します</p>
-                <button class="btn btn-secondary">分析を見る</button>
+                <p>OpenAI最新モデル（o4-mini/o3）でメンタルヘルスの変化を科学的に分析</p>
+                <button @click="switchTab('journal')" class="btn btn-secondary">分析を見る</button>
               </div>
             </div>
             
@@ -83,11 +90,40 @@ const switchTab = (tab) => {
                 <div class="stage-item stage-4">Stage 4: 危険域 - 緊急対応</div>
               </div>
             </div>
+
+            <div class="ai-info">
+              <h3>✨ AI機能について</h3>
+              <div class="ai-features">
+                <div class="ai-feature">
+                  <h4>📝 日記自動整理</h4>
+                  <p>GPT-4.1-mini が誤字脱字を修正し、読みやすく整理します</p>
+                </div>
+                <div class="ai-feature">
+                  <h4>🧠 メンタル分析</h4>
+                  <p>o4-mini で週間ステージ判定、緊急時は o3 で二重チェック</p>
+                </div>
+                <div class="ai-feature">
+                  <h4>🎯 パーソナライズ提案</h4>
+                  <p>7つの休養モデルに基づく具体的アクティブレスト提案</p>
+                </div>
+              </div>
+            </div>
             
-            <div class="test-note">
-              <p>💡 <strong>開発中:</strong> 上部の「Supabaseテスト」タブから接続・認証・DB操作をテストできます</p>
+            <div class="getting-started">
+              <h3>🚀 はじめ方</h3>
+              <ol class="steps-list">
+                <li><strong>アカウント作成:</strong> 「Supabaseテスト」タブでサインアップ・ログイン</li>
+                <li><strong>日記記録:</strong> 「AIジャーナル」タブで今日の気持ちを記録</li>
+                <li><strong>AI分析:</strong> 1週間継続後、メンタルステージ分析を実行</li>
+                <li><strong>アクティブレスト:</strong> AIが提案する回復方法を実践</li>
+              </ol>
             </div>
           </div>
+        </div>
+        
+        <!-- AIジャーナルタブ -->
+        <div v-if="activeTab === 'journal'" class="tab-content">
+          <JournalApp />
         </div>
         
         <!-- Supabaseテストタブ -->
@@ -275,13 +311,96 @@ const switchTab = (tab) => {
 .stage-item.stage-3 { background: #e53e3e; }
 .stage-item.stage-4 { background: #9f7aea; }
 
-.test-note {
+.ai-info {
   margin-top: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 15px;
+  color: white;
+}
+
+.ai-info h3 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: white;
+}
+
+.ai-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.ai-feature {
+  background: rgba(255, 255, 255, 0.1);
   padding: 1rem;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.ai-feature h4 {
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.ai-feature p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.getting-started {
+  margin-top: 2rem;
+  padding: 1.5rem;
   background: #ebf8ff;
   border: 1px solid #bee3f8;
-  border-radius: 8px;
-  text-align: center;
+  border-radius: 10px;
+}
+
+.getting-started h3 {
+  color: #2c5282;
+  margin-bottom: 1rem;
+}
+
+.steps-list {
+  color: #2c5282;
+  line-height: 1.8;
+  padding-left: 1.5rem;
+}
+
+.steps-list li {
+  margin-bottom: 0.5rem;
+}
+
+.steps-list strong {
+  color: #1a365d;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.btn-secondary {
+  background-color: #6b7280;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #4b5563;
 }
 
 @media (max-width: 768px) {
@@ -292,9 +411,19 @@ const switchTab = (tab) => {
   .tab-nav {
     flex-direction: column;
     align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .tab-btn {
+    width: 100%;
+    max-width: 200px;
   }
   
   .features-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ai-features {
     grid-template-columns: 1fr;
   }
   
