@@ -8,9 +8,9 @@ const props = defineProps({
   journals: Array
 })
 
-// リアクティブ状態
+// 現在の日付状態
 const currentDate = ref(new Date())
-const selectedDate = ref(null)
+const selectedDate = ref(new Date()) // デフォルトで今日を選択
 const selectedJournal = ref(null)
 const isLoading = ref(false)
 const message = ref('')

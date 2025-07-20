@@ -485,47 +485,49 @@ onMounted(() => {
 .weekly-stage-chart {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1rem;
+  padding-bottom: 2rem; /* ボトムナビゲーション用の追加スペース */
 }
 
 .chart-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .chart-header h3 {
   color: #2d3748;
   margin-bottom: 0.5rem;
+  font-size: 1.125rem;
 }
 
 .chart-header p {
   color: #4a5568;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .statistics-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .stat-card {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 0.75rem;
   text-align: center;
 }
 
 .stat-label {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: #4a5568;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: bold;
   color: #2d3748;
 }
@@ -546,22 +548,23 @@ onMounted(() => {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  height: 400px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  height: 250px; /* モバイル向けに高さを調整 */
 }
 
 .weekly-data-table {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .weekly-data-table h4 {
   color: #2d3748;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
 }
 
 .table-container {
@@ -571,10 +574,11 @@ onMounted(() => {
 table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.8rem;
 }
 
 th, td {
-  padding: 0.75rem;
+  padding: 0.5rem;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
 }
@@ -583,6 +587,7 @@ th {
   background: #f7fafc;
   font-weight: 600;
   color: #2d3748;
+  font-size: 0.75rem;
 }
 
 tbody tr {
@@ -607,10 +612,11 @@ tbody tr.selected-week {
 .week-label {
   font-weight: 600;
   color: #2d3748;
+  font-size: 0.8rem;
 }
 
 .week-dates {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #4a5568;
 }
 
@@ -621,8 +627,8 @@ tbody tr.selected-week {
 }
 
 .stage-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -631,14 +637,15 @@ tbody tr.selected-week {
 .no-data, .no-action, .ai-disabled {
   color: #9ca3af;
   font-style: italic;
+  font-size: 0.75rem;
 }
 
 .btn {
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   transition: all 0.2s;
 }
 
@@ -660,27 +667,28 @@ tbody tr.selected-week {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .selected-week-detail h4 {
   color: #2d3748;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
 }
 
 .week-overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
   background: #f7fafc;
   border-radius: 6px;
 }
 
 .overview-item {
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: #4a5568;
 }
 
@@ -688,32 +696,33 @@ tbody tr.selected-week {
   color: white;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
-  margin-left: 0.5rem;
+  margin-left: 0.25rem;
 }
 
 .week-journals h5 {
   color: #2d3748;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
 }
 
 .journals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .journal-mini-card {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  padding: 0.75rem;
+  padding: 0.5rem;
 }
 
 .journal-date {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #6b7280;
   margin-bottom: 0.25rem;
 }
@@ -721,71 +730,72 @@ tbody tr.selected-week {
 .journal-title {
   font-weight: 500;
   color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .journal-stage {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #4b5563;
 }
 
 .mini-stage-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 
 .week-recommendations h5 {
   color: #2d3748;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
 }
 
 .recommendations-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
 }
 
 .rec-card-mini {
   background: #f0fff4;
   border: 1px solid #9ae6b4;
   border-radius: 6px;
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .rec-card-mini h6 {
   color: #2d3748;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .rec-meta-mini {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.25rem;
   margin-bottom: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
 }
 
 .rec-type-mini {
   background: #e2e8f0;
-  padding: 0.125rem 0.375rem;
+  padding: 0.125rem 0.25rem;
   border-radius: 3px;
   color: #4a5568;
 }
 
 .rec-duration-mini {
   background: #bee3f8;
-  padding: 0.125rem 0.375rem;
+  padding: 0.125rem 0.25rem;
   border-radius: 3px;
   color: #2c5282;
 }
 
 .rec-description-mini {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #4a5568;
   line-height: 1.4;
   margin: 0;
@@ -798,24 +808,26 @@ tbody tr.selected-week {
   border-radius: 6px;
   color: #2c5282;
   text-align: center;
+  font-size: 0.8rem;
 }
 
 @media (max-width: 768px) {
   .weekly-stage-chart {
-    padding: 1rem;
+    padding: 0.75rem;
   }
   
   .statistics-summary {
     grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
   
   .chart-container {
-    height: 300px;
-    padding: 1rem;
+    height: 200px;
+    padding: 0.75rem;
   }
   
   .table-container {
-    font-size: 0.875rem;
+    font-size: 0.75rem;
   }
   
   .journals-grid {
