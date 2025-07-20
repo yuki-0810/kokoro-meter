@@ -3,6 +3,14 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { supabase } from '../supabase.js'
 import { organizeJournalText } from '../openai.js'
 
+// 地域時間で日付文字列を生成する関数
+const formatDateToLocalString = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Props
 const props = defineProps({
   currentUser: Object,
@@ -20,7 +28,7 @@ const newJournalContent = ref('')
 const isLoading = ref(false)
 const message = ref('')
 const isVoiceInput = ref(false)
-const selectedDate = ref(new Date().toISOString().split('T')[0]) // 今日の日付
+const selectedDate = ref(formatDateToLocalString(new Date())) // 今日の日付
 const errorPopup = ref(false)
 const errorMessage = ref('')
 
@@ -43,7 +51,11 @@ onMounted(() => {
 // 計算されたプロパティ
 const selectedDateJournal = computed(() => {
   if (!props.journals) return null
-  return props.journals.find(j => j.created_at.startsWith(selectedDate.value))
+  // entry_dateフィールドがあればそれを使用、なければcreated_atから日付部分を使用
+  return props.journals.find(j => {
+    const entryDate = j.entry_date || (j.created_at ? j.created_at.split('T')[0] : null)
+    return entryDate === selectedDate.value
+  })
 })
 
 const hasWrittenToday = computed(() => !!selectedDateJournal.value)
@@ -56,7 +68,7 @@ const currentTime = computed(() => {
 })
 
 const isSelectedDateToday = computed(() => {
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatDateToLocalString(new Date())
   return selectedDate.value === today
 })
 
@@ -69,8 +81,8 @@ const changeDate = (delta) => {
   const currentSelectedDate = new Date(selectedDate.value)
   currentSelectedDate.setDate(currentSelectedDate.getDate() + delta)
   
-  const newDateStr = currentSelectedDate.toISOString().split('T')[0]
-  const today = new Date().toISOString().split('T')[0]
+  const newDateStr = formatDateToLocalString(currentSelectedDate)
+  const today = formatDateToLocalString(new Date())
   
   // 未来日は選択不可
   if (newDateStr <= today) {
@@ -228,13 +240,14 @@ const editTodayJournal = () => {
 
     <!-- 今日既に記録済みの場合 -->
     <div v-if="hasWrittenToday" class="today-journal">
-      <div class="completed-banner">
-        <div class="banner-icon">✅</div>
-        <div class="banner-content">
-          <h2>{{ selectedDate }}の日記完了！</h2>
-          <p v-if="isSelectedDateToday">お疲れさまでした。記録を続けることが大切です。</p>
-          <p v-else>過去の日記を確認できます。</p>
+      <!-- 日付選択 -->
+      <div class="date-selector">
+        <button @click="changeDate(-1)" class="date-btn" :disabled="isLoading">‹</button>
+        <div class="selected-date">
+          <h2>{{ selectedDate }}</h2>
+          <span class="date-label">{{ isSelectedDateToday ? '今日' : '過去の日記' }}</span>
         </div>
+        <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= formatDateToLocalString(new Date())">›</button>
       </div>
       
       <div class="journal-preview">
@@ -279,7 +292,7 @@ const editTodayJournal = () => {
           <h2>{{ selectedDate }}</h2>
           <span class="date-label">{{ isSelectedDateToday ? '今日' : '過去の日記' }}</span>
         </div>
-        <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= new Date().toISOString().split('T')[0]">›</button>
+        <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= formatDateToLocalString(new Date())">›</button>
       </div>
 
       <!-- 音声/テキスト切り替え -->

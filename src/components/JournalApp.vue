@@ -23,6 +23,14 @@ const activeTab = ref('home') // 'home', 'write', 'calendar'
 // 日記作成時の選択日付
 const selectedJournalDate = ref(null)
 
+// 認証関連
+const newEmail = ref('')
+const newPassword = ref('')
+const loginEmail = ref('')
+const loginPassword = ref('')
+const authLoading = ref(false)
+const authMessage = ref('')
+
 // 初期化処理
 onMounted(async () => {
   await checkUser()
@@ -87,20 +95,114 @@ const handleNavigateToJournal = (dateStr) => {
 const switchTab = (tabName) => {
   activeTab.value = tabName
 }
+
+// 認証関連関数
+const signUp = async () => {
+  authLoading.value = true
+  authMessage.value = ''
+  try {
+    const { user, error } = await supabase.auth.signUp({
+      email: newEmail.value,
+      password: newPassword.value,
+    })
+    if (error) throw error
+    authMessage.value = 'アカウントが作成されました！ログインしてください。'
+    newEmail.value = ''
+    newPassword.value = ''
+  } catch (error) {
+    authMessage.value = `アカウント作成エラー: ${error.message}`
+  } finally {
+    authLoading.value = false
+  }
+}
+
+const signIn = async () => {
+  authLoading.value = true
+  authMessage.value = ''
+  try {
+    const { user, error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.value,
+      password: loginPassword.value,
+    })
+    if (error) throw error
+    authMessage.value = 'ログインしました！'
+    loginEmail.value = ''
+    loginPassword.value = ''
+    await checkUser() // ログイン後にユーザー情報を更新
+    await loadJournals() // ログイン後に日記を読み込み
+    await checkOpenAIConnection() // ログイン後にOpenAI接続を確認
+  } catch (error) {
+    authMessage.value = `ログインエラー: ${error.message}`
+  } finally {
+    authLoading.value = false
+  }
+}
+
+const signOut = async () => {
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    message.value = `ログアウトエラー: ${error.message}`
+  } else {
+    message.value = 'ログアウトしました。'
+    currentUser.value = null
+    journals.value = []
+    isOpenAIConnected.value = false
+    activeTab.value = 'home'
+  }
+}
 </script>
 
 <template>
   <div class="kokoro-meter">
     <div v-if="!currentUser" class="login-required">
       <div class="login-prompt">
-        <div class="prompt-icon">🔐</div>
-        <h2>ログインが必要です</h2>
-        <p>ココロメーターを使用するには、まずログインしてください。</p>
-        <p>左側のメニューから「Supabaseテスト」でログインできます。</p>
+        <div class="prompt-icon">��</div>
+        <h2>ココロメーターへようこそ</h2>
+        <p>メンタルステージを可視化し、AIがあなたに最適なアクティブレストを提案します。</p>
+        
+        <div class="auth-options">
+          <div class="auth-option">
+            <h3>🆕 新規アカウント作成</h3>
+            <p>初回の方はこちらからアカウントを作成してください</p>
+            <div class="auth-form">
+              <input v-model="newEmail" type="email" placeholder="メールアドレス" class="auth-input" />
+              <input v-model="newPassword" type="password" placeholder="パスワード（6文字以上）" class="auth-input" />
+              <button @click="signUp" :disabled="authLoading" class="btn btn-primary auth-btn">
+                {{ authLoading ? '作成中...' : '🚀 アカウント作成' }}
+              </button>
+            </div>
+          </div>
+          
+          <div class="auth-divider">または</div>
+          
+          <div class="auth-option">
+            <h3>🔑 既存アカウントでログイン</h3>
+            <p>すでにアカウントをお持ちの方はこちら</p>
+            <div class="auth-form">
+              <input v-model="loginEmail" type="email" placeholder="メールアドレス" class="auth-input" />
+              <input v-model="loginPassword" type="password" placeholder="パスワード" class="auth-input" />
+              <button @click="signIn" :disabled="authLoading" class="btn btn-secondary auth-btn">
+                {{ authLoading ? 'ログイン中...' : '✅ ログイン' }}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div v-if="authMessage" class="auth-message">
+          {{ authMessage }}
+        </div>
       </div>
     </div>
     
     <div v-else class="app-content">
+      <!-- ヘッダー -->
+      <header class="app-header">
+        <div class="header-content">
+          <h1 class="app-title">ココロメーター</h1>
+          <button @click="signOut" class="logout-btn">ログアウト</button>
+        </div>
+      </header>
+
       <!-- メインコンテンツエリア -->
       <div class="main-content">
         <!-- ホームタブ -->
@@ -215,14 +317,164 @@ const switchTab = (tabName) => {
   line-height: 1.6;
 }
 
+.auth-options {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.auth-option {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.auth-option h3 {
+  color: #3b82f6;
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+}
+
+.auth-option p {
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-input {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.auth-input:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+.auth-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease, opacity 0.3s ease;
+  border: none;
+  width: 100%;
+}
+
+.btn-primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2b6cb0;
+}
+
+.btn-primary:disabled {
+  background-color: #90cdf4;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-secondary {
+  background-color: #edf2f7;
+  color: #3b82f6;
+  border: 1px solid #3b82f6;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #e2e8f0;
+}
+
+.btn-secondary:disabled {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.auth-divider {
+  margin: 1.5rem 0;
+  text-align: center;
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
+.auth-message {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #f9fafb;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
 .app-content {
   position: relative;
   min-height: 100vh;
 }
 
+.app-header {
+  background: white;
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-title {
+  color: #2d3748;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.logout-btn {
+  background-color: #f56565;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  border: none;
+}
+
+.logout-btn:hover {
+  background-color: #e53e3e;
+}
+
 .main-content {
+  padding-top: 80px; /* ヘッダー分のスペース */
   padding-bottom: 80px; /* ボトムナビゲーション分のスペース */
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - 80px - 80px); /* ヘッダーとボトムナビゲーション分の高さ */
 }
 
 .tab-content {

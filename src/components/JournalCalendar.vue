@@ -26,13 +26,21 @@ const monthNames = [
 
 const dayNames = ['日', '月', '火', '水', '木', '金', '土']
 
+// 地域時間で日付文字列を生成する関数
+const formatDateToLocalString = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // 計算されたプロパティ
 const currentYear = computed(() => currentDate.value.getFullYear())
 const currentMonth = computed(() => currentDate.value.getMonth())
 
 // 今日の日付（比較用）
 const todayDateString = computed(() => {
-  return new Date().toISOString().split('T')[0]
+  return formatDateToLocalString(new Date())
 })
 
 // 現在表示中の月の日記データをマップ化
@@ -41,8 +49,20 @@ const journalMap = computed(() => {
   
   if (props.journals) {
     props.journals.forEach(journal => {
-      const entryDate = journal.entry_date || journal.created_at.split('T')[0]
-      map.set(entryDate, journal)
+      // entry_dateが存在する場合はそれを使用、そうでなければcreated_atから日付部分を抽出
+      let entryDate = journal.entry_date
+      if (!entryDate && journal.created_at) {
+        // created_atが文字列の場合（ISO形式）は日付部分のみ抽出
+        if (typeof journal.created_at === 'string') {
+          entryDate = journal.created_at.split('T')[0]
+        } else {
+          // Dateオブジェクトの場合は地域時間で変換
+          entryDate = formatDateToLocalString(new Date(journal.created_at))
+        }
+      }
+      if (entryDate) {
+        map.set(entryDate, journal)
+      }
     })
   }
   
@@ -68,7 +88,7 @@ const calendarDays = computed(() => {
   
   // 6週分の日付を生成（42日）
   for (let i = 0; i < 42; i++) {
-    const dateStr = current.toISOString().split('T')[0]
+    const dateStr = formatDateToLocalString(current)
     const journal = journalMap.value.get(dateStr)
     
     days.push({
@@ -198,7 +218,7 @@ const deleteJournal = async (journalId) => {
 // 今日に移動
 const goToToday = () => {
   currentDate.value = new Date()
-  const today = new Date().toISOString().split('T')[0]
+  const today = formatDateToLocalString(new Date())
   const todayJournal = journalMap.value.get(today)
   
   selectedDate.value = today
@@ -207,7 +227,7 @@ const goToToday = () => {
   if (todayJournal) {
     message.value = '今日の日記を表示しています'
   } else {
-    message.value = '今日はまだ日記を書いていません'
+    message.value = ''
   }
 }
 </script>
