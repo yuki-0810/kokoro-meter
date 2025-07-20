@@ -8,6 +8,7 @@ import {
   generateActiveRestRecommendations 
 } from '../openai.js'
 import JournalCalendar from './JournalCalendar.vue'
+import WeeklyStageChart from './WeeklyStageChart.vue'
 
 // リアクティブ状態
 const currentUser = ref(null)
@@ -325,6 +326,12 @@ const deleteJournal = async (id) => {
         >
           📅 カレンダー表示
         </button>
+        <button 
+          @click="activeView = 'weekly-chart'" 
+          :class="['tab-btn', { active: activeView === 'weekly-chart' }]"
+        >
+          📊 週次推移分析
+        </button>
       </div>
 
       <!-- 日記記録・分析ビュー -->
@@ -472,6 +479,15 @@ const deleteJournal = async (id) => {
         <JournalCalendar 
           :currentUser="currentUser" 
           :journals="journals"
+        />
+      </div>
+
+      <!-- 週次推移分析ビュー -->
+      <div v-if="activeView === 'weekly-chart'" class="weekly-chart-view">
+        <WeeklyStageChart 
+          :journals="journals"
+          :currentUser="currentUser"
+          :isOpenAIConnected="isOpenAIConnected"
         />
       </div>
 
