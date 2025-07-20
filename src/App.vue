@@ -1,10 +1,10 @@
 <script setup>
-import MainApp from './components/MainApp.vue'
+import Main from './components/Main.vue'
 </script>
 
 <template>
   <div id="app">
-    <MainApp />
+    <Main />
   </div>
 </template>
 
