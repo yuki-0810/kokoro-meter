@@ -23,12 +23,12 @@ const message = ref('')
 const weeklyAnalysisResults = ref([])
 const isGeneratingRecommendations = ref(false) // 休養法生成中フラグ
 
-// 週単位の日付計算ヘルパー関数
+// 週単位の日付計算ヘルパー関数（月曜日起点）
 const getWeekStartDate = (date = new Date()) => {
   const d = new Date(date)
   const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
-  const diff = d.getDate() - day // 日曜日までの差分
-  d.setDate(diff)
+  const diff = day === 0 ? -6 : 1 - day // 月曜日までの差分
+  d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
   return d
 }

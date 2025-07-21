@@ -34,12 +34,12 @@ const weeklyAnalysisResults = ref([])
 const toastMessage = ref('')
 const showToast = ref(false)
 
-// 週単位の日付計算ヘルパー関数
+// 週単位の日付計算ヘルパー関数（月曜日起点）
 const getWeekStartDate = (date = new Date()) => {
   const d = new Date(date)
   const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
-  const diff = d.getDate() - day // 日曜日までの差分
-  d.setDate(diff)
+  const diff = day === 0 ? -6 : 1 - day // 月曜日までの差分
+  d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
   return d
 }
@@ -376,17 +376,17 @@ const editTodayJournal = () => {
         </div>
         
         <div class="journal-actions">
-          <button @click="editTodayJournal" class="btn btn-secondary" :disabled="!canEditSelectedDate">
+          <button v-if="canEditSelectedDate" @click="editTodayJournal" class="btn btn-secondary">
             ✏️ 編集
           </button>
-          <button @click="deleteTodayJournal" class="btn btn-danger" :disabled="isLoading || !canEditSelectedDate">
+          <button v-if="canEditSelectedDate" @click="deleteTodayJournal" class="btn btn-danger" :disabled="isLoading">
             🗑️ 削除
           </button>
-        </div>
-        
-        <!-- 編集制限メッセージ -->
-        <div v-if="!canEditSelectedDate" class="edit-restriction-message">
-          {{ editRestrictionMessage }}
+          
+          <!-- 編集制限メッセージ -->
+          <div v-if="!canEditSelectedDate" class="edit-restriction-message-action">
+            {{ editRestrictionMessage }}
+          </div>
         </div>
       </div>
     </div>
@@ -401,11 +401,6 @@ const editTodayJournal = () => {
           <span class="date-label">{{ isSelectedDateToday ? '今日' : '過去の日記' }}</span>
         </div>
         <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= formatDateToLocalString(new Date())">›</button>
-      </div>
-
-      <!-- 編集制限メッセージ -->
-      <div v-if="!canEditSelectedDate" class="edit-restriction-message">
-        {{ editRestrictionMessage }}
       </div>
 
       <!-- タイトル入力 -->
@@ -435,15 +430,22 @@ const editTodayJournal = () => {
         <div class="char-count">{{ newJournalContent.length }} 文字</div>
       </div>
       
-      <!-- 保存ボタン -->
-      <button 
-        @click="saveJournal" 
-        :disabled="isLoading || !newJournalTitle || !newJournalContent || !canEditSelectedDate"
-        class="btn btn-primary save-btn"
-      >
-        <span v-if="isLoading">{{ message || '保存中...' }}</span>
-        <span v-else>📝 保存</span>
-      </button>
+      <!-- 保存ボタンまたは編集制限メッセージ -->
+      <div v-if="canEditSelectedDate" class="action-section">
+        <button 
+          @click="saveJournal" 
+          :disabled="isLoading || !newJournalTitle || !newJournalContent"
+          class="btn btn-primary save-btn"
+        >
+          <span v-if="isLoading">{{ message || '保存中...' }}</span>
+          <span v-else>📝 保存</span>
+        </button>
+      </div>
+      <div v-else class="action-section">
+        <div class="edit-restriction-message-action">
+          {{ editRestrictionMessage }}
+        </div>
+      </div>
     </div>
 
     <!-- ヘルプメッセージ -->
@@ -826,6 +828,17 @@ const editTodayJournal = () => {
 }
 
 .edit-restriction-message {
+  background-color: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.edit-restriction-message-action {
   background-color: #fffbeb;
   color: #92400e;
   border: 1px solid #fde68a;

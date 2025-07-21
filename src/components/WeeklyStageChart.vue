@@ -24,12 +24,12 @@ const chartInstance = ref(null)
 const weeklyAnalysisData = ref([])
 const isDrawing = ref(false) // 描画中フラグを追加
 
-// 週単位の日付計算ヘルパー関数（日曜日起点）
+// 週単位の日付計算ヘルパー関数（月曜日起点）
 const getWeekStartDate = (date = new Date()) => {
   const d = new Date(date)
   const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
-  const diff = d.getDate() - day // 日曜日までの差分
-  d.setDate(diff)
+  const diff = day === 0 ? -6 : 1 - day // 月曜日までの差分
+  d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
   return d
 }
@@ -72,12 +72,12 @@ const loadWeeklyAnalysisData = async () => {
 const weeklyData = computed(() => {
   if (!props.journals || props.journals.length === 0) return []
   
-  // 過去8週間のデータを準備（日曜日起点）
+  // 過去8週間のデータを準備（月曜日起点）
   const weeks = []
   const today = new Date()
   
   for (let i = 7; i >= 0; i--) {
-    // i週前の日曜日を計算
+    // i週前の月曜日を計算
     const targetDate = new Date(today)
     targetDate.setDate(today.getDate() - (7 * i))
     
