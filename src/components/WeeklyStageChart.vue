@@ -488,24 +488,9 @@ onUnmounted(() => {
 
 <template>
   <div class="weekly-stage-chart">
-    <!-- 統計サマリー -->
-    <div v-if="statistics" class="statistics-summary">
-      <div class="stat-card">
-        <div class="stat-label">平均ステージ</div>
-        <div class="stat-value">{{ statistics.averageStage }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">トレンド</div>
-        <div class="stat-value" :class="statistics.trendDirection">
-          <span v-if="statistics.trendDirection === 'improving'">📈 改善傾向</span>
-          <span v-else-if="statistics.trendDirection === 'worsening'">📉 悪化傾向</span>
-          <span v-else>➡️ 安定</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">総週数</div>
-        <div class="stat-value">{{ statistics.totalWeeks }}週</div>
-      </div>
+    <!-- 推移グラフのタイトル -->
+    <div class="chart-title">
+      <h3>📈 これまでの分析結果</h3>
     </div>
 
     <!-- チャート表示 -->
@@ -642,6 +627,17 @@ onUnmounted(() => {
   margin: 0 auto;
   padding: 1rem;
   padding-bottom: 2rem; /* ボトムナビゲーション用の追加スペース */
+}
+
+.chart-title {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.chart-title h3 {
+  color: #2d3748;
+  margin: 0;
+  font-size: 1.125rem;
 }
 
 .chart-header {

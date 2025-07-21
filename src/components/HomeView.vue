@@ -21,6 +21,7 @@ const activeRestRecommendations = ref(null)
 const isLoading = ref(false)
 const message = ref('')
 const weeklyAnalysisResults = ref([])
+const isGeneratingRecommendations = ref(false) // 休養法生成中フラグ
 
 // 週単位の日付計算ヘルパー関数
 const getWeekStartDate = (date = new Date()) => {
@@ -260,6 +261,7 @@ const analyzeWeeklyMentalStage = async () => {
 const generateRecommendations = async () => {
   if (!props.isOpenAIConnected || currentStage.value === null) return
   
+  isGeneratingRecommendations.value = true
   try {
     const hour = new Date().getHours()
     let timeOfDay = 'morning'
@@ -273,6 +275,8 @@ const generateRecommendations = async () => {
     }
   } catch (error) {
     console.error('アクティブレスト提案エラー:', error)
+  } finally {
+    isGeneratingRecommendations.value = false
   }
 }
 
@@ -318,10 +322,7 @@ const navigateToJournal = () => {
         <div class="stage-info">
           <h3>Stage {{ currentStage }}</h3>
           <p>{{ stageDescription }}</p>
-          <div v-if="stageAnalysis" class="stage-meta">
-            <span>信頼度: {{ stageAnalysis.confidence }}%</span>
-            <span>分析対象: {{ currentWeekJournals.length }}日分</span>
-          </div>
+          <!-- 分析対象と信頼度の表示を削除 -->
         </div>
       </div>
       
@@ -345,9 +346,16 @@ const navigateToJournal = () => {
     </div>
 
     <!-- アクティブレスト提案 -->
-    <div v-if="activeRestRecommendations" class="active-rest">
-      <h2>🎯 今のあなたに最適な休養法</h2>
-      <div class="recommendations-grid">
+    <div v-if="currentStage !== null" class="active-rest">
+      <h2 v-if="isGeneratingRecommendations">🎯 今のあなたに最適な休養法 <span class="analyzing">分析中...</span></h2>
+      <h2 v-else-if="activeRestRecommendations">🎯 今のあなたに最適な休養法</h2>
+      
+      <div v-if="isGeneratingRecommendations" class="analyzing-message">
+        <div class="spinner">⏳</div>
+        <p>AIがあなたに最適な休養法を分析しています...</p>
+      </div>
+      
+      <div v-else-if="activeRestRecommendations" class="recommendations-grid">
         <div v-for="rec in activeRestRecommendations.recommendations" :key="rec.title" class="rec-card">
           <h4>{{ rec.title }}</h4>
           <div class="rec-meta">
@@ -609,6 +617,30 @@ const navigateToJournal = () => {
   color: #4a5568;
   font-size: 0.875rem;
   line-height: 1.4;
+}
+
+.analyzing-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #4a5568;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.analyzing {
+  color: #3b82f6;
+  font-size: 0.875rem;
+  font-weight: normal;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .analysis-prompt {
