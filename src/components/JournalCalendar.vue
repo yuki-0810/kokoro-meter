@@ -25,6 +25,24 @@ const selectedDate = ref(formatDateToLocalString(new Date())) // 文字列とし
 const selectedJournal = ref(null)
 const isLoading = ref(false)
 const message = ref('')
+const weeklyAnalysisResults = ref([])
+
+// 週単位の日付計算ヘルパー関数（月曜日起点）
+const getWeekStartDate = (date = new Date()) => {
+  const d = new Date(date)
+  const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
+  const diff = day === 0 ? -6 : 1 - day // 月曜日までの差分
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const getWeekEndDate = (startDate) => {
+  const d = new Date(startDate)
+  d.setDate(d.getDate() + 6)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
 
 // 日本語の月名と曜日
 const monthNames = [
@@ -189,31 +207,49 @@ const monthStats = computed(() => {
   }
 })
 
-// 日記を削除
-const deleteJournal = async (journalId) => {
-  if (!props.currentUser || !journalId) return
+// DBから週次分析結果を読み込み
+const loadWeeklyAnalysis = async () => {
+  if (!props.currentUser) return
   
-  isLoading.value = true
   try {
-    const { error } = await supabase
-      .from('journals')
-      .delete()
-      .eq('id', journalId)
+    const { data, error } = await supabase
+      .from('weekly_analysis')
+      .select('*')
+      .order('week_start_date', { ascending: false })
     
     if (error) throw error
     
-    selectedJournal.value = null
-    selectedDate.value = null
-    message.value = '日記を削除しました'
+    weeklyAnalysisResults.value = data || []
     
-    // 親コンポーネントに削除を通知（イベント発行）
-    window.location.reload() // 簡易的な更新
   } catch (error) {
-    message.value = `削除エラー: ${error.message}`
-  } finally {
-    isLoading.value = false
+    console.error('週間分析読み込みエラー:', error)
   }
 }
+
+// 選択された日付の週が分析済みかどうかを判定
+const isSelectedDateWeekAnalyzed = computed(() => {
+  if (!selectedDate.value) return false
+  
+  const dateObj = new Date(selectedDate.value)
+  const weekStartDate = getWeekStartDate(dateObj)
+  const weekStartStr = formatDateToLocalString(weekStartDate)
+  
+  return weeklyAnalysisResults.value.some(w => w.week_start_date === weekStartStr)
+})
+
+// 新規日記作成が可能かどうかを判定
+const canCreateNewJournal = computed(() => {
+  // 分析済みの週は新規作成不可
+  if (isSelectedDateWeekAnalyzed.value) return false
+  
+  // 未来日は作成不可
+  if (selectedDate.value > todayDateString.value) return false
+  
+  // 既に日記がある場合は作成不可
+  if (selectedJournal.value) return false
+  
+  return true
+})
 
 // 今日に移動
 const goToToday = () => {
@@ -255,6 +291,13 @@ watch(() => props.journals, () => {
     selectedJournal.value = null
   }
 }, { deep: true })
+
+// ユーザーが変更されたときに週間分析を再読み込み
+watch(() => props.currentUser, async () => {
+  if (props.currentUser) {
+    await loadWeeklyAnalysis()
+  }
+}, { immediate: true })
 </script>
 
 <template>
@@ -341,9 +384,6 @@ watch(() => props.journals, () => {
     <div v-if="selectedDate" class="journal-detail">
       <div class="detail-header">
         <h3>{{ selectedDate }} の日記</h3>
-        <button v-if="selectedJournal" @click="deleteJournal(selectedJournal.id)" class="btn-delete">
-          削除
-        </button>
       </div>
 
       <div v-if="selectedJournal" class="journal-content">
@@ -381,14 +421,20 @@ watch(() => props.journals, () => {
       </div>
 
       <div v-else class="no-journal">
-        <div v-if="selectedDate <= todayDateString.value">
+        <div v-if="canCreateNewJournal">
           <p>この日には日記が記録されていません。</p>
           <button @click="navigateToJournal(selectedDate)" class="btn btn-primary write-journal-btn">
             📝 日記を書く
           </button>
         </div>
-        <div v-else>
+        <div v-else-if="isSelectedDateWeekAnalyzed">
+          <p>この週は分析が完了しているため、新しい日記は作成できません。</p>
+        </div>
+        <div v-else-if="selectedDate > todayDateString.value">
           <p>未来日は選択できません。</p>
+        </div>
+        <div v-else>
+          <p>この日には日記が記録されていません。</p>
         </div>
       </div>
     </div>
@@ -694,21 +740,6 @@ watch(() => props.journals, () => {
   font-weight: 500;
 }
 
-.btn-delete {
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-delete:hover {
-  background: #dc2626;
-}
-
 .btn {
   padding: 0.5rem 1rem;
   border: none;
@@ -724,6 +755,15 @@ watch(() => props.journals, () => {
 
 .btn-secondary:hover {
   background: #4b5563;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
 }
 
 .status-message {
