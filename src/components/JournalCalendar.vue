@@ -24,7 +24,6 @@ const currentDate = ref(new Date())
 const selectedDate = ref(formatDateToLocalString(new Date())) // 文字列として初期化
 const selectedJournal = ref(null)
 const isLoading = ref(false)
-const message = ref('')
 const weeklyAnalysisResults = ref([])
 
 // 週単位の日付計算ヘルパー関数（月曜日起点）
@@ -148,12 +147,6 @@ const selectDate = (dayObj) => {
   
   selectedDate.value = dayObj.dateStr
   selectedJournal.value = dayObj.journal
-  
-  if (dayObj.hasJournal) {
-    message.value = `${dayObj.dateStr} の日記を表示しています`
-  } else {
-    message.value = `${dayObj.dateStr} には日記がありません`
-  }
 }
 
 // 日記作成ページに遷移
@@ -173,11 +166,6 @@ const getDayClass = (dayObj) => {
   // 未来日は無効化
   if (dayObj.dateStr > todayDateString.value) {
     classes.push('future-date')
-  }
-  
-  // ステージレベルに応じたクラス
-  if (dayObj.stageLevel !== null) {
-    classes.push(`stage-${dayObj.stageLevel}`)
   }
   
   return classes.join(' ')
@@ -251,6 +239,37 @@ const canCreateNewJournal = computed(() => {
   return true
 })
 
+// 週次ステージデータを計算
+const weeklyStageData = computed(() => {
+  const weeks = []
+  const daysInGrid = calendarDays.value
+  
+  // カレンダーグリッドを週単位に分割（6週間）
+  for (let weekIndex = 0; weekIndex < 6; weekIndex++) {
+    const weekDays = daysInGrid.slice(weekIndex * 7, (weekIndex + 1) * 7)
+    
+    if (weekDays.length === 0) continue
+    
+    const weekStart = weekDays[0]
+    const weekEnd = weekDays[6]
+    
+    // この週の分析結果を検索
+    const weekStartStr = formatDateToLocalString(getWeekStartDate(new Date(weekStart.dateStr)))
+    const weekAnalysis = weeklyAnalysisResults.value.find(w => w.week_start_date === weekStartStr)
+    
+    weeks.push({
+      weekIndex,
+      startDate: weekStart.dateStr,
+      endDate: weekEnd.dateStr,
+      hasAnalysis: !!weekAnalysis,
+      stageLevel: weekAnalysis?.stage_level || null,
+      days: weekDays
+    })
+  }
+  
+  return weeks
+})
+
 // 今日に移動
 const goToToday = () => {
   currentDate.value = new Date()
@@ -259,12 +278,6 @@ const goToToday = () => {
   
   selectedDate.value = today
   selectedJournal.value = todayJournal
-  
-  if (todayJournal) {
-    message.value = '今日の日記を表示しています'
-  } else {
-    message.value = ''
-  }
 }
 
 // 初期化処理
@@ -335,19 +348,38 @@ watch(() => props.currentUser, async () => {
       </div>
 
       <!-- カレンダーグリッド -->
-      <div class="calendar-grid">
-        <div 
-          v-for="dayObj in calendarDays" 
-          :key="dayObj.dateStr"
-          :class="getDayClass(dayObj)"
-          @click="selectDate(dayObj)"
-        >
-          <div class="day-number">{{ dayObj.day }}</div>
-          <div v-if="dayObj.hasJournal" class="journal-indicator">
-            <div 
-              class="stage-dot" 
-              :style="{ backgroundColor: getStageColor(dayObj.stageLevel) }"
-            ></div>
+      <div class="calendar-grid-container">
+        <!-- 週次ステージバー -->
+        <div class="weekly-stage-bars">
+          <div 
+            v-for="week in weeklyStageData" 
+            :key="week.weekIndex" 
+            class="week-stage-bar"
+            :class="{ 'has-analysis': week.hasAnalysis }"
+            :style="{ 
+              backgroundColor: week.hasAnalysis ? getStageColor(week.stageLevel) : 'transparent',
+              top: `${week.weekIndex * (100 / 6)}%`,
+              height: `${100 / 6}%`
+            }"
+          >
+            <span v-if="week.hasAnalysis" class="stage-label">
+              Stage {{ week.stageLevel }}
+            </span>
+          </div>
+        </div>
+
+        <!-- カレンダーグリッド -->
+        <div class="calendar-grid">
+          <div 
+            v-for="dayObj in calendarDays" 
+            :key="dayObj.dateStr"
+            :class="getDayClass(dayObj)"
+            @click="selectDate(dayObj)"
+          >
+            <div class="day-number">{{ dayObj.day }}</div>
+            <div v-if="dayObj.hasJournal" class="journal-indicator">
+              <div class="journal-dot"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -401,20 +433,23 @@ watch(() => props.currentUser, async () => {
           <!-- AI分析結果があれば表示 -->
           <div v-if="selectedJournal.ai_metadata" class="ai-analysis">
             <h5>AI分析結果:</h5>
-            <div v-if="selectedJournal.ai_metadata.detected_emotions" class="analysis-item">
-              <strong>感情:</strong> {{ selectedJournal.ai_metadata.detected_emotions.join(', ') }}
-            </div>
-            <div v-if="selectedJournal.ai_metadata.key_events" class="analysis-item">
-              <strong>出来事:</strong> {{ selectedJournal.ai_metadata.key_events.join(', ') }}
-            </div>
-            <div v-if="selectedJournal.ai_metadata.stage_level !== undefined" class="analysis-item">
-              <strong>ステージレベル:</strong> 
-              <span 
-                class="stage-badge" 
-                :style="{ backgroundColor: getStageColor(selectedJournal.ai_metadata.stage_level) }"
-              >
-                Stage {{ selectedJournal.ai_metadata.stage_level }}
-              </span>
+            <div class="analysis-tags">
+              <div v-if="selectedJournal.ai_metadata.detected_emotions" class="tag-group">
+                <span class="tag-label">感情:</span>
+                <div class="tag-items">
+                  <span v-for="emotion in selectedJournal.ai_metadata.detected_emotions" :key="emotion" class="emotion-tag">
+                    {{ emotion }}
+                  </span>
+                </div>
+              </div>
+              <div v-if="selectedJournal.ai_metadata.key_events" class="tag-group">
+                <span class="tag-label">出来事:</span>
+                <div class="tag-items">
+                  <span v-for="event in selectedJournal.ai_metadata.key_events" :key="event" class="event-tag">
+                    {{ event }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -437,11 +472,6 @@ watch(() => props.currentUser, async () => {
           <p>この日には日記が記録されていません。</p>
         </div>
       </div>
-    </div>
-
-    <!-- ステータスメッセージ -->
-    <div v-if="message" class="status-message">
-      {{ message }}
     </div>
   </div>
 </template>
@@ -543,11 +573,49 @@ watch(() => props.currentUser, async () => {
   font-size: 0.875rem;
 }
 
+.calendar-grid-container {
+  position: relative;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  background: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.weekly-stage-bars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.week-stage-bar {
+  height: calc(100% / 6); /* 6週間分で均等分割 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  position: absolute;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 4px;
+  margin: 1px 0;
+  opacity: 0.85;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
   background: #e2e8f0;
+  position: relative;
+  z-index: 2;
 }
 
 .calendar-day {
@@ -603,7 +671,7 @@ watch(() => props.currentUser, async () => {
   margin-top: 0.25rem;
 }
 
-.stage-dot {
+.journal-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -713,18 +781,46 @@ watch(() => props.currentUser, async () => {
   font-size: 0.9rem;
 }
 
-.analysis-item {
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  color: #4a5568;
+.analysis-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.stage-badge {
-  color: white;
+.tag-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tag-label {
+  font-weight: 500;
+  color: #4a5568;
+  font-size: 0.875rem;
+}
+
+.tag-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.emotion-tag,
+.event-tag {
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 0.75rem;
-  font-weight: bold;
+  font-weight: 500;
+}
+
+.emotion-tag {
+  background: #fef3cd;
+  color: #92400e;
+}
+
+.event-tag {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .no-journal {
@@ -764,16 +860,6 @@ watch(() => props.currentUser, async () => {
 
 .btn-primary:hover {
   background: #2563eb;
-}
-
-.status-message {
-  padding: 0.75rem;
-  background: #ebf8ff;
-  border: 1px solid #bee3f8;
-  border-radius: 6px;
-  color: #2c5282;
-  text-align: center;
-  margin-top: 1rem;
 }
 
 @media (max-width: 768px) {
