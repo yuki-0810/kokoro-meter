@@ -357,13 +357,16 @@ watch(() => props.currentUser, async () => {
             class="week-stage-bar"
             :class="{ 'has-analysis': week.hasAnalysis }"
             :style="{ 
-              backgroundColor: week.hasAnalysis ? getStageColor(week.stageLevel) : 'transparent',
+              backgroundColor: week.hasAnalysis ? getStageColor(week.stageLevel) : 'rgba(200, 200, 200, 0.3)',
               top: `${week.weekIndex * (100 / 6)}%`,
               height: `${100 / 6}%`
             }"
           >
             <span v-if="week.hasAnalysis" class="stage-label">
               Stage {{ week.stageLevel }}
+            </span>
+            <span v-else class="stage-label-test" style="color: #666; font-size: 0.7rem;">
+              Week {{ week.weekIndex + 1 }}
             </span>
           </div>
         </div>
@@ -581,6 +584,7 @@ watch(() => props.currentUser, async () => {
   background: #e2e8f0;
   border-radius: 8px;
   overflow: hidden;
+  min-height: 510px; /* 6週間 × 85px */
 }
 
 .weekly-stage-bars {
@@ -590,7 +594,7 @@ watch(() => props.currentUser, async () => {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 10;
 }
 
 .week-stage-bar {
@@ -602,15 +606,17 @@ watch(() => props.currentUser, async () => {
   font-size: 0.75rem;
   font-weight: 600;
   color: white;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
   position: absolute;
   width: 100%;
   box-sizing: border-box;
   border-radius: 0;
   margin: 0;
-  opacity: 0.9;
-  border-left: 4px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(1px);
+  opacity: 1;
+  border-left: 4px solid rgba(255, 255, 255, 0.4);
+  border-right: 4px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(2px);
 }
 
 .calendar-grid {
@@ -619,7 +625,7 @@ watch(() => props.currentUser, async () => {
   gap: 1px;
   background: #e2e8f0;
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 .calendar-day {
@@ -632,6 +638,7 @@ watch(() => props.currentUser, async () => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  z-index: 1;
 }
 
 .calendar-day:hover {
@@ -697,22 +704,27 @@ watch(() => props.currentUser, async () => {
 
 .legend-items-horizontal {
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  justify-content: center;
+  overflow-x: auto;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
+  gap: 0.25rem;
+  font-size: 0.7rem;
   color: #4a5568;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .legend-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .legend-note {
@@ -895,8 +907,18 @@ watch(() => props.currentUser, async () => {
   }
 
   .legend-items-horizontal {
-    flex-direction: column;
     gap: 0.5rem;
+    justify-content: flex-start;
+    padding: 0 0.5rem;
+  }
+
+  .legend-item {
+    font-size: 0.65rem;
+  }
+
+  .legend-dot {
+    width: 6px;
+    height: 6px;
   }
 
   .detail-header {
