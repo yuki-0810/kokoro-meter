@@ -331,9 +331,16 @@ watch(() => props.currentUser, async () => {
         >
           <div class="day-number">{{ dayObj.day }}</div>
           <div v-if="dayObj.hasJournal" class="journal-indicator">
+            <!-- ステージレベルがある場合はステージドット -->
             <div 
+              v-if="dayObj.stageLevel != null"
               class="stage-dot" 
               :style="{ backgroundColor: getStageColor(dayObj.stageLevel) }"
+            ></div>
+            <!-- ステージレベルがない場合は小さなジャーナルドット -->
+            <div 
+              v-else
+              class="journal-dot"
             ></div>
           </div>
         </div>
@@ -362,6 +369,10 @@ watch(() => props.currentUser, async () => {
           <div class="legend-item">
             <div class="legend-dot" :style="{ backgroundColor: getStageColor(4) }"></div>
             <span>Stage 4: 危険域</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot-small"></div>
+            <span>日記のみ（分析なし）</span>
           </div>
         </div>
       </div>
@@ -596,6 +607,14 @@ watch(() => props.currentUser, async () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.journal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #e2e8f0; /* 小さなジャーナルドットの色 */
+  border: 1px solid #cbd5e0; /* 小さなジャーナルドットの枠線 */
+}
+
 .legend {
   margin-top: 1.5rem;
   padding-top: 1rem;
@@ -626,6 +645,14 @@ watch(() => props.currentUser, async () => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+}
+
+.legend-dot-small {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  border: 1px solid #cbd5e0;
 }
 
 .journal-detail {
@@ -810,6 +837,11 @@ watch(() => props.currentUser, async () => {
   .legend-dot {
     width: 8px;
     height: 8px;
+  }
+
+  .legend-dot-small {
+    width: 6px;
+    height: 6px;
   }
 
   .detail-header {
