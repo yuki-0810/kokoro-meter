@@ -31,6 +31,43 @@ const isVoiceInput = ref(false)
 const selectedDate = ref(formatDateToLocalString(new Date())) // 今日の日付
 const errorPopup = ref(false)
 const errorMessage = ref('')
+const weeklyAnalysisResults = ref([])
+
+// 週単位の日付計算ヘルパー関数
+const getWeekStartDate = (date = new Date()) => {
+  const d = new Date(date)
+  const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
+  const diff = d.getDate() - day // 日曜日までの差分
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const getWeekEndDate = (startDate) => {
+  const d = new Date(startDate)
+  d.setDate(d.getDate() + 6)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+// DBから週次分析結果を読み込み
+const loadWeeklyAnalysis = async () => {
+  if (!props.currentUser) return
+  
+  try {
+    const { data, error } = await supabase
+      .from('weekly_analysis')
+      .select('*')
+      .order('week_start_date', { ascending: false })
+    
+    if (error) throw error
+    
+    weeklyAnalysisResults.value = data || []
+    
+  } catch (error) {
+    console.error('週間分析読み込みエラー:', error)
+  }
+}
 
 // selectedJournalDateの変更を監視
 watch(() => props.selectedJournalDate, (newDate) => {
@@ -41,9 +78,12 @@ watch(() => props.selectedJournalDate, (newDate) => {
 }, { immediate: true })
 
 // 初期化
-onMounted(() => {
+onMounted(async () => {
   if (props.selectedJournalDate) {
     selectedDate.value = props.selectedJournalDate
+  }
+  if (props.currentUser) {
+    await loadWeeklyAnalysis()
   }
   loadJournalForDate()
 })
@@ -70,6 +110,44 @@ const currentTime = computed(() => {
 const isSelectedDateToday = computed(() => {
   const today = formatDateToLocalString(new Date())
   return selectedDate.value === today
+})
+
+const isSelectedDateInCurrentWeek = computed(() => {
+  const currentWeekStart = getWeekStartDate()
+  const currentWeekEnd = getWeekEndDate(currentWeekStart)
+  const selectedDateObj = new Date(selectedDate.value)
+  
+  return selectedDateObj >= currentWeekStart && selectedDateObj <= currentWeekEnd
+})
+
+const selectedDateWeekStart = computed(() => {
+  const dateObj = new Date(selectedDate.value)
+  return formatDateToLocalString(getWeekStartDate(dateObj))
+})
+
+const isSelectedDateWeekAnalyzed = computed(() => {
+  return weeklyAnalysisResults.value.some(w => w.week_start_date === selectedDateWeekStart.value)
+})
+
+const canEditSelectedDate = computed(() => {
+  // 今週の日記は編集可能
+  if (isSelectedDateInCurrentWeek.value) return true
+  
+  // 過去の週で分析が実行されていない場合は編集可能
+  if (!isSelectedDateWeekAnalyzed.value) return true
+  
+  // それ以外は編集不可
+  return false
+})
+
+const editRestrictionMessage = computed(() => {
+  if (canEditSelectedDate.value) return ''
+  
+  if (isSelectedDateWeekAnalyzed.value) {
+    return 'この週は分析が完了しているため、日記の編集はできません。'
+  }
+  
+  return ''
 })
 
 const inputModeText = computed(() => {
@@ -107,6 +185,11 @@ const loadJournalForDate = () => {
 const saveJournal = async () => {
   if (!props.currentUser) {
     showError('ログインが必要です')
+    return
+  }
+  
+  if (!canEditSelectedDate.value) {
+    showError(editRestrictionMessage.value)
     return
   }
   
@@ -197,6 +280,11 @@ const toggleVoiceInput = () => {
 const deleteTodayJournal = async () => {
   if (!selectedDateJournal.value || !props.currentUser) return
   
+  if (!canEditSelectedDate.value) {
+    showError(editRestrictionMessage.value)
+    return
+  }
+  
   const confirmed = confirm(`${selectedDate.value}の日記を削除しますか？`)
   if (!confirmed) return
   
@@ -222,6 +310,11 @@ const deleteTodayJournal = async () => {
 // 今日の日記を編集
 const editTodayJournal = () => {
   if (!selectedDateJournal.value) return
+  
+  if (!canEditSelectedDate.value) {
+    showError(editRestrictionMessage.value)
+    return
+  }
   
   newJournalTitle.value = selectedDateJournal.value.title
   newJournalContent.value = selectedDateJournal.value.original_content || selectedDateJournal.value.content
@@ -273,12 +366,17 @@ const editTodayJournal = () => {
         </div>
         
         <div class="journal-actions">
-          <button @click="editTodayJournal" class="btn btn-secondary">
+          <button @click="editTodayJournal" class="btn btn-secondary" :disabled="!canEditSelectedDate">
             ✏️ 編集
           </button>
-          <button @click="deleteTodayJournal" class="btn btn-danger" :disabled="isLoading">
+          <button @click="deleteTodayJournal" class="btn btn-danger" :disabled="isLoading || !canEditSelectedDate">
             🗑️ 削除
           </button>
+        </div>
+        
+        <!-- 編集制限メッセージ -->
+        <div v-if="!canEditSelectedDate" class="edit-restriction-message">
+          {{ editRestrictionMessage }}
         </div>
       </div>
     </div>
@@ -295,9 +393,14 @@ const editTodayJournal = () => {
         <button @click="changeDate(1)" class="date-btn" :disabled="isLoading || selectedDate >= formatDateToLocalString(new Date())">›</button>
       </div>
 
+      <!-- 編集制限メッセージ -->
+      <div v-if="!canEditSelectedDate" class="edit-restriction-message">
+        {{ editRestrictionMessage }}
+      </div>
+
       <!-- 音声/テキスト切り替え -->
       <div class="input-mode">
-        <button @click="toggleVoiceInput" :class="['mode-btn', { active: isVoiceInput }]">
+        <button @click="toggleVoiceInput" :class="['mode-btn', { active: isVoiceInput }]" :disabled="!canEditSelectedDate">
           {{ isVoiceInput ? '🎤 音声入力' : '⌨️ テキスト入力' }}
         </button>
         <div class="mode-status">{{ inputModeText }}</div>
@@ -312,7 +415,7 @@ const editTodayJournal = () => {
           type="text" 
           placeholder="例: 充実した一日、疲れた日、新しい発見"
           class="form-input"
-          :disabled="isLoading"
+          :disabled="isLoading || !canEditSelectedDate"
         />
       </div>
       
@@ -325,7 +428,7 @@ const editTodayJournal = () => {
           placeholder="今日の出来事、気持ち、考えたことを自由に書いてください..."
           class="form-textarea"
           rows="8"
-          :disabled="isLoading"
+          :disabled="isLoading || !canEditSelectedDate"
         ></textarea>
         <div class="char-count">{{ newJournalContent.length }} 文字</div>
       </div>
@@ -333,7 +436,7 @@ const editTodayJournal = () => {
       <!-- 保存ボタン -->
       <button 
         @click="saveJournal" 
-        :disabled="isLoading || !newJournalTitle || !newJournalContent"
+        :disabled="isLoading || !newJournalTitle || !newJournalContent || !canEditSelectedDate"
         class="btn btn-primary save-btn"
       >
         <span v-if="isLoading">{{ message || '保存中...' }}</span>
@@ -727,6 +830,17 @@ const editTodayJournal = () => {
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-width: 90%;
+  text-align: center;
+}
+
+.edit-restriction-message {
+  background-color: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
   text-align: center;
 }
 

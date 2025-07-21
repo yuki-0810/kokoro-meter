@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import WeeklyStageChart from './WeeklyStageChart.vue'
 import { analyzeJournalForStage, generateActiveRestRecommendations } from '../openai.js'
+import { supabase } from '../supabase.js'
 
 // Props
 const props = defineProps({
@@ -19,17 +20,71 @@ const stageAnalysis = ref(null)
 const activeRestRecommendations = ref(null)
 const isLoading = ref(false)
 const message = ref('')
+const weeklyAnalysisResults = ref([])
+
+// 週単位の日付計算ヘルパー関数
+const getWeekStartDate = (date = new Date()) => {
+  const d = new Date(date)
+  const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
+  const diff = d.getDate() - day // 日曜日までの差分
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const getWeekEndDate = (startDate) => {
+  const d = new Date(startDate)
+  d.setDate(d.getDate() + 6)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+const formatDateToLocalString = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 // 計算されたプロパティ
-const weeklyJournals = computed(() => {
+const currentWeekStart = computed(() => getWeekStartDate())
+const currentWeekEnd = computed(() => getWeekEndDate(currentWeekStart.value))
+
+const currentWeekJournals = computed(() => {
   if (!props.journals) return []
   
-  const oneWeekAgo = new Date()
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+  const startStr = formatDateToLocalString(currentWeekStart.value)
+  const endStr = formatDateToLocalString(currentWeekEnd.value)
   
-  return props.journals.filter(j => 
-    new Date(j.created_at) >= oneWeekAgo
-  )
+  return props.journals.filter(j => {
+    const entryDate = j.entry_date || (j.created_at ? j.created_at.split('T')[0] : null)
+    return entryDate && entryDate >= startStr && entryDate <= endStr
+  })
+})
+
+const currentWeekAnalysis = computed(() => {
+  const startStr = formatDateToLocalString(currentWeekStart.value)
+  return weeklyAnalysisResults.value.find(w => w.week_start_date === startStr)
+})
+
+const canAnalyzeCurrentWeek = computed(() => {
+  // 今週の分析がまだない場合のみ分析可能
+  if (currentWeekAnalysis.value) return false
+  
+  // 今週に日記が1件以上ある場合分析可能
+  return currentWeekJournals.value.length > 0
+})
+
+const isCurrentWeekComplete = computed(() => {
+  // 現在の週が終了している（今日が月曜日以降で先週の週末を過ぎている）
+  const today = new Date()
+  const weekEnd = getWeekEndDate(getWeekStartDate(today))
+  return today > weekEnd
+})
+
+const weeklyJournals = computed(() => {
+  // 互換性のため残す（レガシー）
+  return currentWeekJournals.value
 })
 
 const stageColor = computed(() => {
@@ -83,9 +138,79 @@ const todayJournal = computed(() => {
   return props.journals.find(j => j.created_at.startsWith(today))
 })
 
+// 週間分析結果をDBから読み込み
+const loadWeeklyAnalysis = async () => {
+  if (!props.currentUser) return
+  
+  try {
+    const { data, error } = await supabase
+      .from('weekly_analysis')
+      .select('*')
+      .order('week_start_date', { ascending: false })
+    
+    if (error) throw error
+    
+    weeklyAnalysisResults.value = data || []
+    
+    // 最新の分析結果から現在のステージを設定
+    if (data && data.length > 0) {
+      const latestAnalysis = data[0]
+      currentStage.value = latestAnalysis.stage_level
+      stageAnalysis.value = {
+        stage: latestAnalysis.stage_level,
+        confidence: latestAnalysis.confidence,
+        ...latestAnalysis.analysis_data
+      }
+      
+      // アクティブレスト提案を生成
+      await generateRecommendations()
+    }
+    
+  } catch (error) {
+    console.error('週間分析読み込みエラー:', error)
+    message.value = `分析結果の読み込みエラー: ${error.message}`
+  }
+}
+
+// 週間分析結果をDBに保存
+const saveWeeklyAnalysis = async (analysisData) => {
+  if (!props.currentUser) return false
+  
+  try {
+    const weekStart = formatDateToLocalString(currentWeekStart.value)
+    const weekEnd = formatDateToLocalString(currentWeekEnd.value)
+    
+    const { data, error } = await supabase
+      .from('weekly_analysis')
+      .upsert([
+        {
+          user_id: props.currentUser.id,
+          week_start_date: weekStart,
+          week_end_date: weekEnd,
+          stage_level: analysisData.stage,
+          confidence: analysisData.confidence,
+          analysis_data: analysisData,
+          journal_count: currentWeekJournals.value.length
+        }
+      ])
+      .select()
+    
+    if (error) throw error
+    
+    // ローカル状態を更新
+    await loadWeeklyAnalysis()
+    
+    return true
+  } catch (error) {
+    console.error('週間分析保存エラー:', error)
+    message.value = `分析結果の保存エラー: ${error.message}`
+    return false
+  }
+}
+
 // 週間メンタルステージ分析
 const analyzeWeeklyMentalStage = async () => {
-  if (!props.currentUser || weeklyJournals.value.length === 0) {
+  if (!props.currentUser || currentWeekJournals.value.length === 0) {
     message.value = '分析するジャーナルがありません'
     return
   }
@@ -95,27 +220,32 @@ const analyzeWeeklyMentalStage = async () => {
     return
   }
   
+  if (currentWeekAnalysis.value) {
+    message.value = 'この週は既に分析済みです'
+    return
+  }
+  
   isLoading.value = true
   try {
     message.value = 'AIがメンタルステージを分析しています...'
     
-    const analysisResult = await analyzeJournalForStage(weeklyJournals.value)
+    const analysisResult = await analyzeJournalForStage(currentWeekJournals.value)
     
     if (analysisResult.success) {
-      stageAnalysis.value = analysisResult.data
-      currentStage.value = analysisResult.data.stage
+      // DB保存
+      const saved = await saveWeeklyAnalysis(analysisResult.data)
       
-      // 分析完了メッセージは表示しない
-      message.value = ''
-      
-      // 緊急時の警告
-      if (analysisResult.data.emergency) {
-        message.value = '⚠️ 専門的なサポートを推奨します'
+      if (saved) {
+        message.value = ''
+        
+        // 緊急時の警告
+        if (analysisResult.data.emergency) {
+          message.value = '⚠️ 専門的なサポートを推奨します'
+        }
+        
+        // アクティブレスト提案を自動生成
+        await generateRecommendations()
       }
-      
-      // アクティブレスト提案を自動生成
-      await generateRecommendations()
-      
     } else {
       message.value = analysisResult.message
     }
@@ -146,10 +276,10 @@ const generateRecommendations = async () => {
   }
 }
 
-// 初期化時に週間分析がある場合は自動実行
-onMounted(() => {
-  if (weeklyJournals.value.length > 0 && props.isOpenAIConnected) {
-    analyzeWeeklyMentalStage()
+// 初期化時にDBから週間分析結果を読み込み
+onMounted(async () => {
+  if (props.currentUser) {
+    await loadWeeklyAnalysis()
   }
 })
 
@@ -190,7 +320,7 @@ const navigateToJournal = () => {
           <p>{{ stageDescription }}</p>
           <div v-if="stageAnalysis" class="stage-meta">
             <span>信頼度: {{ stageAnalysis.confidence }}%</span>
-            <span>分析対象: {{ weeklyJournals.length }}日分</span>
+            <span>分析対象: {{ currentWeekJournals.length }}日分</span>
           </div>
         </div>
       </div>
@@ -230,16 +360,17 @@ const navigateToJournal = () => {
     </div>
 
     <!-- 週間分析ボタン -->
-    <div v-if="weeklyJournals.length > 0 && currentStage === null" class="analysis-prompt">
-      <h2>📊 週間分析</h2>
-      <p>過去7日間の日記 {{ weeklyJournals.length }} 件を分析して、現在のメンタルステージを確認しましょう</p>
+    <div v-if="canAnalyzeCurrentWeek && !currentWeekAnalysis" class="analysis-prompt">
+      <h2>📊 今週の分析</h2>
+      <p>今週の日記 {{ currentWeekJournals.length }} 件を分析して、メンタルステージを確認しましょう</p>
       <button 
         @click="analyzeWeeklyMentalStage" 
-        :disabled="isLoading || !isOpenAIConnected"
+        :disabled="isLoading || !props.isOpenAIConnected"
         class="btn btn-primary"
       >
-        {{ isLoading ? '分析中...' : 'メンタルステージを分析' }}
+        {{ isLoading ? '分析中...' : '🧠 今週の分析を実行' }}
       </button>
+      <p class="analysis-note">※分析実行後は過去の日記編集ができなくなります</p>
     </div>
 
     <!-- 週次推移グラフ -->
@@ -498,6 +629,12 @@ const navigateToJournal = () => {
   color: #4a5568;
   margin-bottom: 1rem;
   font-size: 0.875rem;
+}
+
+.analysis-note {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #718096;
 }
 
 .weekly-trends h2 {

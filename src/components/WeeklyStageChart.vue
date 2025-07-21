@@ -4,6 +4,7 @@ import {
   analyzeJournalForStage,
   generateActiveRestRecommendations 
 } from '../openai.js'
+import { supabase } from '../supabase.js'
 
 // Props
 const props = defineProps({
@@ -20,35 +21,88 @@ const selectedWeek = ref(null)
 const selectedWeekRecommendations = ref(null)
 const chartContainer = ref(null)
 const chartInstance = ref(null)
+const weeklyAnalysisData = ref([])
+
+// 週単位の日付計算ヘルパー関数（日曜日起点）
+const getWeekStartDate = (date = new Date()) => {
+  const d = new Date(date)
+  const day = d.getDay() // 0 = Sunday, 1 = Monday, ...
+  const diff = d.getDate() - day // 日曜日までの差分
+  d.setDate(diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const getWeekEndDate = (startDate) => {
+  const d = new Date(startDate)
+  d.setDate(d.getDate() + 6)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+const formatDateToLocalString = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// DBから週次分析結果を読み込み
+const loadWeeklyAnalysisData = async () => {
+  if (!props.currentUser) return
+  
+  try {
+    const { data, error } = await supabase
+      .from('weekly_analysis')
+      .select('*')
+      .order('week_start_date', { ascending: false })
+      .limit(8) // 過去8週間分
+    
+    if (error) throw error
+    
+    weeklyAnalysisData.value = data || []
+    
+  } catch (error) {
+    console.error('週次分析データ読み込みエラー:', error)
+  }
+}
 
 // 週次データの計算
 const weeklyData = computed(() => {
   if (!props.journals || props.journals.length === 0) return []
   
-  // 過去8週間のデータを準備
+  // 過去8週間のデータを準備（日曜日起点）
   const weeks = []
   const today = new Date()
   
   for (let i = 7; i >= 0; i--) {
-    const weekStart = new Date(today)
-    weekStart.setDate(today.getDate() - (today.getDay() + 7 * i))
-    weekStart.setHours(0, 0, 0, 0)
+    // i週前の日曜日を計算
+    const targetDate = new Date(today)
+    targetDate.setDate(today.getDate() - (7 * i))
     
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 6)
-    weekEnd.setHours(23, 59, 59, 999)
+    const weekStart = getWeekStartDate(targetDate)
+    const weekEnd = getWeekEndDate(weekStart)
+    const weekStartStr = formatDateToLocalString(weekStart)
+    const weekEndStr = formatDateToLocalString(weekEnd)
     
     // この週の日記を抽出
     const weekJournals = props.journals.filter(journal => {
-      const journalDate = new Date(journal.created_at)
-      return journalDate >= weekStart && journalDate <= weekEnd
+      const entryDate = journal.entry_date || (journal.created_at ? journal.created_at.split('T')[0] : null)
+      return entryDate && entryDate >= weekStartStr && entryDate <= weekEndStr
     })
     
-    // 週次ステージレベルを計算（日記のステージレベル平均）
+    // DBから週次分析結果を取得
+    const analysisResult = weeklyAnalysisData.value.find(w => w.week_start_date === weekStartStr)
+    
     let weekStageLevel = null
     let confidence = 0
     
-    if (weekJournals.length > 0) {
+    if (analysisResult) {
+      // DB保存済みの分析結果を使用
+      weekStageLevel = analysisResult.stage_level
+      confidence = analysisResult.confidence
+    } else if (weekJournals.length > 0) {
+      // 個別日記のステージレベル平均（フォールバック）
       const stages = weekJournals
         .map(j => j.ai_metadata?.stage_level)
         .filter(s => s !== null && s !== undefined)
@@ -68,7 +122,8 @@ const weeklyData = computed(() => {
       journals: weekJournals,
       journalCount: weekJournals.length,
       stageLevel: weekStageLevel,
-      confidence: confidence
+      confidence: confidence,
+      hasAnalysis: !!analysisResult
     })
   }
   
@@ -298,9 +353,22 @@ watch(() => props.journals, () => {
   }
 }, { deep: true })
 
+watch(() => props.currentUser, () => {
+  if (props.currentUser) {
+    loadWeeklyAnalysisData()
+  }
+}, { immediate: true })
+
+watch(weeklyAnalysisData, () => {
+  if (chartInstance.value) {
+    drawChart()
+  }
+}, { deep: true })
+
 // マウント時の処理
 onMounted(() => {
   loadChart()
+  loadWeeklyAnalysisData()
 })
 </script>
 
