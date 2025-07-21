@@ -143,14 +143,6 @@ const drawChart = () => {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        title: {
-          display: true,
-          text: '週次ステージレベル推移（過去8週間）',
-          font: {
-            size: 16,
-            weight: 'bold'
-          }
-        },
         legend: {
           display: false
         },
@@ -314,11 +306,6 @@ onMounted(() => {
 
 <template>
   <div class="weekly-stage-chart">
-    <div class="chart-header">
-      <h3>📈 週次ステージ推移分析</h3>
-      <p>過去8週間のメンタルヘルストレンドを可視化します</p>
-    </div>
-
     <!-- 統計サマリー -->
     <div v-if="statistics" class="statistics-summary">
       <div class="stat-card">

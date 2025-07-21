@@ -30,6 +30,7 @@ const loginEmail = ref('')
 const loginPassword = ref('')
 const authLoading = ref(false)
 const authMessage = ref('')
+const showSignUp = ref(false) // サインアップページ表示フラグ
 
 // 初期化処理
 onMounted(async () => {
@@ -156,11 +157,32 @@ const signOut = async () => {
   <div class="kokoro-meter">
     <div v-if="!currentUser" class="login-required">
       <div class="login-prompt">
-        <div class="prompt-icon">��</div>
-        <h2>ココロメーターへようこそ</h2>
-        <p>メンタルステージを可視化し、AIがあなたに最適なアクティブレストを提案します。</p>
+        <div class="prompt-icon">🔐</div>
+        <h2>ココロメーター</h2>
+        <p>毎日の日記をAIが分析し、あなたのメンタル状態を可視化します。</p>
         
-        <div class="auth-options">
+        <!-- ログインページ -->
+        <div v-if="!showSignUp" class="auth-page">
+          <div class="auth-option">
+            <h3>🔑 ログイン</h3>
+            <p>アカウントをお持ちの方はこちら</p>
+            <div class="auth-form">
+              <input v-model="loginEmail" type="email" placeholder="メールアドレス" class="auth-input" />
+              <input v-model="loginPassword" type="password" placeholder="パスワード" class="auth-input" />
+              <button @click="signIn" :disabled="authLoading" class="btn btn-primary auth-btn">
+                {{ authLoading ? 'ログイン中...' : '✅ ログイン' }}
+              </button>
+            </div>
+          </div>
+          
+          <div class="auth-switch">
+            <p>アカウントをお持ちでない方は</p>
+            <button @click="showSignUp = true" class="link-btn">新規アカウント作成</button>
+          </div>
+        </div>
+        
+        <!-- サインアップページ -->
+        <div v-else class="auth-page">
           <div class="auth-option">
             <h3>🆕 新規アカウント作成</h3>
             <p>初回の方はこちらからアカウントを作成してください</p>
@@ -173,18 +195,9 @@ const signOut = async () => {
             </div>
           </div>
           
-          <div class="auth-divider">または</div>
-          
-          <div class="auth-option">
-            <h3>🔑 既存アカウントでログイン</h3>
-            <p>すでにアカウントをお持ちの方はこちら</p>
-            <div class="auth-form">
-              <input v-model="loginEmail" type="email" placeholder="メールアドレス" class="auth-input" />
-              <input v-model="loginPassword" type="password" placeholder="パスワード" class="auth-input" />
-              <button @click="signIn" :disabled="authLoading" class="btn btn-secondary auth-btn">
-                {{ authLoading ? 'ログイン中...' : '✅ ログイン' }}
-              </button>
-            </div>
+          <div class="auth-switch">
+            <p>すでにアカウントをお持ちの方は</p>
+            <button @click="showSignUp = false" class="link-btn">ログインページへ</button>
           </div>
         </div>
         
@@ -211,6 +224,7 @@ const signOut = async () => {
             :currentUser="currentUser" 
             :journals="journals"
             :isOpenAIConnected="isOpenAIConnected"
+            @navigateToJournal="handleNavigateToJournal"
           />
         </div>
 
@@ -322,6 +336,11 @@ const signOut = async () => {
   text-align: left;
 }
 
+.auth-page {
+  margin-top: 2rem;
+  text-align: left;
+}
+
 .auth-option {
   margin-bottom: 2rem;
   padding: 1.5rem;
@@ -340,6 +359,35 @@ const signOut = async () => {
   color: #4a5568;
   margin-bottom: 1.5rem;
   font-size: 0.9rem;
+}
+
+.auth-switch {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f7fafc;
+  border-radius: 8px;
+}
+
+.auth-switch p {
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.link-btn:hover {
+  color: #2563eb;
 }
 
 .auth-form {

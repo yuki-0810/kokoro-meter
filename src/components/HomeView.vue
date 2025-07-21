@@ -10,6 +10,9 @@ const props = defineProps({
   isOpenAIConnected: Boolean
 })
 
+// Emits
+const emit = defineEmits(['navigateToJournal'])
+
 // リアクティブ状態
 const currentStage = ref(null)
 const stageAnalysis = ref(null)
@@ -102,11 +105,12 @@ const analyzeWeeklyMentalStage = async () => {
       stageAnalysis.value = analysisResult.data
       currentStage.value = analysisResult.data.stage
       
-      message.value = `分析完了！現在のステージ: Stage ${analysisResult.data.stage}`
+      // 分析完了メッセージは表示しない
+      message.value = ''
       
       // 緊急時の警告
       if (analysisResult.data.emergency) {
-        message.value += ' ⚠️ 専門的なサポートを推奨します'
+        message.value = '⚠️ 専門的なサポートを推奨します'
       }
       
       // アクティブレスト提案を自動生成
@@ -148,30 +152,29 @@ onMounted(() => {
     analyzeWeeklyMentalStage()
   }
 })
+
+// 今日の日記作成ページに遷移
+const navigateToJournal = () => {
+  const today = new Date().toISOString().split('T')[0]
+  emit('navigateToJournal', today)
+}
 </script>
 
 <template>
   <div class="home-view">
     <!-- 今日の記録状況 -->
-    <div class="today-status">
-      <h2>🌅 今日の記録</h2>
-      <div v-if="todayJournal" class="today-recorded">
-        <div class="status-card success">
-          <div class="status-icon">✅</div>
-          <div class="status-text">
-            <h3>記録済み</h3>
-            <p>{{ todayJournal.title }}</p>
-          </div>
-        </div>
-      </div>
-      <div v-else class="today-pending">
+    <div v-if="!todayJournal" class="today-status">
+      <div class="today-pending">
         <div class="status-card pending">
           <div class="status-icon">📝</div>
           <div class="status-text">
-            <h3>未記録</h3>
-            <p>今日の日記を書きましょう</p>
+            <h3>今日の日記を書きましょう</h3>
+            <p>メンタル状態を記録して分析を始めましょう</p>
           </div>
         </div>
+        <button @click="navigateToJournal" class="btn btn-primary write-today-btn">
+          📝 日記を書く
+        </button>
       </div>
     </div>
 
@@ -226,7 +229,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 週次分析ボタン -->
+    <!-- 週間分析ボタン -->
     <div v-if="weeklyJournals.length > 0 && currentStage === null" class="analysis-prompt">
       <h2>📊 週間分析</h2>
       <p>過去7日間の日記 {{ weeklyJournals.length }} 件を分析して、現在のメンタルステージを確認しましょう</p>
@@ -241,7 +244,6 @@ onMounted(() => {
 
     <!-- 週次推移グラフ -->
     <div class="weekly-trends">
-      <h2>📈 週次推移トレンド</h2>
       <WeeklyStageChart 
         :journals="journals"
         :currentUser="currentUser"
@@ -306,6 +308,14 @@ onMounted(() => {
   margin: 0;
   color: #4a5568;
   font-size: 0.875rem;
+}
+
+.write-today-btn {
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  width: 100%;
 }
 
 .current-stage {
