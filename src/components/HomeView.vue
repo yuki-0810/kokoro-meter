@@ -315,11 +315,11 @@ const navigateToJournal = () => {
     <!-- 現在のメンタルステージ -->
     <div v-if="currentStage !== null" class="current-stage">
       <h2>🧠 現在のメンタルステージ</h2>
-      <div class="stage-display">
+      <div class="stage-display-center">
         <div class="stage-circle" :style="{ backgroundColor: stageColor }">
           <span class="stage-number">{{ currentStage }}</span>
         </div>
-        <div class="stage-info">
+        <div class="stage-info-center">
           <h3>Stage {{ currentStage }}</h3>
           <p>{{ stageDescription }}</p>
           <!-- 分析対象と信頼度の表示を削除 -->
@@ -475,6 +475,31 @@ const navigateToJournal = () => {
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.stage-display-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stage-info-center {
+  text-align: center;
+}
+
+.stage-info-center h3 {
+  margin: 0 0 0.25rem 0;
+  color: #2d3748;
+  font-size: 1.125rem;
+}
+
+.stage-info-center p {
+  margin: 0 0 0.5rem 0;
+  color: #4a5568;
+  font-size: 0.875rem;
 }
 
 .stage-circle {

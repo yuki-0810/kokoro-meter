@@ -82,8 +82,8 @@ const loadJournals = async () => {
 // 日記保存時のリフレッシュ
 const handleJournalSaved = async () => {
   await loadJournals()
-  // 日記保存後はホームタブに移動して結果を確認
-  activeTab.value = 'home'
+  // 日記保存後のホームタブ移動を削除（同じページに留まる）
+  // activeTab.value = 'home'
 }
 
 // カレンダーから日記作成への遷移

@@ -27,11 +27,12 @@ const newJournalTitle = ref('')
 const newJournalContent = ref('')
 const isLoading = ref(false)
 const message = ref('')
-const isVoiceInput = ref(false)
 const selectedDate = ref(formatDateToLocalString(new Date())) // 今日の日付
 const errorPopup = ref(false)
 const errorMessage = ref('')
 const weeklyAnalysisResults = ref([])
+const toastMessage = ref('')
+const showToast = ref(false)
 
 // 週単位の日付計算ヘルパー関数
 const getWeekStartDate = (date = new Date()) => {
@@ -130,14 +131,14 @@ const isSelectedDateWeekAnalyzed = computed(() => {
 })
 
 const canEditSelectedDate = computed(() => {
-  // 今週の日記は編集可能
+  // 過去の週で分析が実行されている場合は編集不可
+  if (isSelectedDateWeekAnalyzed.value) return false
+  
+  // 今週の日記は編集可能（ただし分析未実行の場合のみ）
   if (isSelectedDateInCurrentWeek.value) return true
   
   // 過去の週で分析が実行されていない場合は編集可能
-  if (!isSelectedDateWeekAnalyzed.value) return true
-  
-  // それ以外は編集不可
-  return false
+  return true
 })
 
 const editRestrictionMessage = computed(() => {
@@ -148,10 +149,6 @@ const editRestrictionMessage = computed(() => {
   }
   
   return ''
-})
-
-const inputModeText = computed(() => {
-  return isVoiceInput.value ? '音声入力モード（準備中）' : 'テキスト入力モード'
 })
 
 // 日付操作関数
@@ -252,7 +249,10 @@ const saveJournal = async () => {
     newJournalContent.value = ''
     message.value = aiMetadata ? 'AI整理された日記を保存しました！' : '日記を保存しました！'
     
-    // 親コンポーネントに保存完了を通知
+    // Toast表示でユーザーに通知し、ホーム遷移は行わない
+    showToastMessage(aiMetadata ? 'AI整理された日記を保存しました！' : '日記を保存しました！')
+    
+    // 親コンポーネントに保存完了を通知（ホーム遷移なし）
     emit('journalSaved')
     
   } catch (error) {
@@ -271,9 +271,13 @@ const showError = (msg) => {
   }, 3000)
 }
 
-// 音声入力切り替え（将来実装用）
-const toggleVoiceInput = () => {
-  isVoiceInput.value = !isVoiceInput.value
+// Toast表示関数
+const showToastMessage = (msg) => {
+  toastMessage.value = msg
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 3000)
 }
 
 // 今日の日記を削除
@@ -298,6 +302,7 @@ const deleteTodayJournal = async () => {
     if (error) throw error
     
     message.value = `${selectedDate.value}の日記を削除しました`
+    showToastMessage(`${selectedDate.value}の日記を削除しました`)
     loadJournalForDate() // 日記を再読み込み
     emit('journalSaved') // 削除後もデータ更新のため
   } catch (error) {
@@ -329,6 +334,11 @@ const editTodayJournal = () => {
     <!-- エラーポップアップ -->
     <div v-if="errorPopup" class="error-popup">
       {{ errorMessage }}
+    </div>
+
+    <!-- Toast表示 -->
+    <div v-if="showToast" class="toast-notification">
+      {{ toastMessage }}
     </div>
 
     <!-- 今日既に記録済みの場合 -->
@@ -398,14 +408,6 @@ const editTodayJournal = () => {
         {{ editRestrictionMessage }}
       </div>
 
-      <!-- 音声/テキスト切り替え -->
-      <div class="input-mode">
-        <button @click="toggleVoiceInput" :class="['mode-btn', { active: isVoiceInput }]" :disabled="!canEditSelectedDate">
-          {{ isVoiceInput ? '🎤 音声入力' : '⌨️ テキスト入力' }}
-        </button>
-        <div class="mode-status">{{ inputModeText }}</div>
-      </div>
-      
       <!-- タイトル入力 -->
       <div class="form-group">
         <label for="title">今日のタイトル</label>
@@ -616,28 +618,6 @@ const editTodayJournal = () => {
   border: 1px solid #bee3f8;
 }
 
-.input-mode {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-
-.mode-btn {
-  padding: 0.75rem 1.5rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 25px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-.mode-btn.active {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-}
-
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -810,13 +790,6 @@ const editTodayJournal = () => {
   color: #6b7280;
 }
 
-.mode-status {
-  text-align: center;
-  font-size: 0.875rem;
-  color: #4a5568;
-  margin-top: 0.5rem;
-}
-
 .error-popup {
   position: fixed;
   top: 20px;
@@ -831,6 +804,25 @@ const editTodayJournal = () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   max-width: 90%;
   text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .edit-restriction-message {
