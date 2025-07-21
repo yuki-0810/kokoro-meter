@@ -166,12 +166,16 @@ const drawChart = () => {
   // 既存のチャートを破棄
   if (chartInstance.value) {
     chartInstance.value.destroy()
+    chartInstance.value = null
   }
   
   const ctx = chartContainer.value.getContext('2d')
   
   const labels = weeklyData.value.map(week => week.weekNumber)
-  const data = weeklyData.value.map(week => week.stageLevel)
+  // nullの値はChart.jsではNaNまたはnullとして扱う
+  const data = weeklyData.value.map(week => 
+    week.stageLevel !== null ? week.stageLevel : NaN
+  )
   const colors = weeklyData.value.map(week => 
     week.stageLevel !== null ? getStageColor(week.stageLevel) : '#e2e8f0'
   )
@@ -189,29 +193,42 @@ const drawChart = () => {
         pointBackgroundColor: colors,
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
-        pointRadius: 8,
+        pointRadius: (context) => {
+          const value = context.parsed.y
+          return !isNaN(value) ? 8 : 0 // nullの場合は点を表示しない
+        },
         tension: 0.4,
-        fill: true
+        fill: false,
+        spanGaps: false // nullの値でグラフを分割
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        intersect: false,
+        mode: 'index'
+      },
       plugins: {
         legend: {
           display: false
         },
         tooltip: {
+          filter: function(tooltipItem) {
+            return !isNaN(tooltipItem.parsed.y)
+          },
           callbacks: {
             title: function(context) {
+              if (!context || context.length === 0) return ''
               const weekIndex = context[0].dataIndex
               const week = weeklyData.value[weekIndex]
+              if (!week) return ''
               return `${week.weekNumber} (${week.dateRange})`
             },
             label: function(context) {
               const weekIndex = context.dataIndex
               const week = weeklyData.value[weekIndex]
-              if (week.stageLevel === null) {
+              if (!week || week.stageLevel === null || isNaN(context.parsed.y)) {
                 return '記録なし'
               }
               return [
@@ -228,10 +245,14 @@ const drawChart = () => {
         y: {
           beginAtZero: true,
           max: 4,
+          min: 0,
           ticks: {
             stepSize: 1,
             callback: function(value) {
-              return `Stage ${value}`
+              if (Number.isInteger(value) && value >= 0 && value <= 4) {
+                return `Stage ${value}`
+              }
+              return ''
             }
           },
           title: {
@@ -247,9 +268,12 @@ const drawChart = () => {
         }
       },
       onClick: (event, elements) => {
-        if (elements.length > 0) {
+        if (elements && elements.length > 0) {
           const weekIndex = elements[0].index
-          selectWeek(weeklyData.value[weekIndex])
+          const week = weeklyData.value[weekIndex]
+          if (week && week.stageLevel !== null) {
+            selectWeek(week)
+          }
         }
       }
     }
@@ -332,35 +356,57 @@ const statistics = computed(() => {
 
 // Chart.jsを動的読み込み
 const loadChart = async () => {
-  if (window.Chart) {
-    drawChart()
-    return
+  try {
+    if (window.Chart) {
+      drawChart()
+      return
+    }
+    
+    // Chart.jsを動的に読み込み
+    const script = document.createElement('script')
+    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js'
+    script.onload = () => {
+      // Chart.jsが読み込まれた後にグラフを描画
+      setTimeout(() => {
+        if (window.Chart && weeklyData.value.length > 0) {
+          drawChart()
+        }
+      }, 100)
+    }
+    script.onerror = () => {
+      console.error('Chart.jsの読み込みに失敗しました')
+      message.value = 'チャートの読み込みに失敗しました'
+    }
+    document.head.appendChild(script)
+  } catch (error) {
+    console.error('Chart.js読み込みエラー:', error)
+    message.value = 'チャートの初期化に失敗しました'
   }
-  
-  // Chart.jsを動的に読み込み
-  const script = document.createElement('script')
-  script.src = 'https://cdn.jsdelivr.net/npm/chart.js'
-  script.onload = () => {
-    drawChart()
-  }
-  document.head.appendChild(script)
 }
 
 // データ変更を監視
 watch(() => props.journals, () => {
-  if (chartInstance.value) {
+  if (chartInstance.value && weeklyData.value.length > 0) {
     drawChart()
   }
 }, { deep: true })
 
-watch(() => props.currentUser, () => {
+watch(() => props.currentUser, async () => {
   if (props.currentUser) {
-    loadWeeklyAnalysisData()
+    await loadWeeklyAnalysisData()
   }
 }, { immediate: true })
 
 watch(weeklyAnalysisData, () => {
-  if (chartInstance.value) {
+  // weeklyAnalysisDataが変更されたらチャートを再描画
+  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+    drawChart()
+  }
+}, { deep: true })
+
+watch(weeklyData, () => {
+  // weeklyDataが変更されたらチャートを再描画
+  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
     drawChart()
   }
 }, { deep: true })
