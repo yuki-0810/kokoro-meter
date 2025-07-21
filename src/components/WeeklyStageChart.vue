@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { 
   analyzeJournalForStage,
   generateActiveRestRecommendations 
@@ -161,123 +161,145 @@ const getStageDescription = (level) => {
 
 // Chart.jsでグラフを描画
 const drawChart = () => {
-  if (!chartContainer.value || weeklyData.value.length === 0) return
-  
-  // 既存のチャートを破棄
-  if (chartInstance.value) {
-    chartInstance.value.destroy()
-    chartInstance.value = null
+  // DOM要素とデータの存在確認を強化
+  if (!chartContainer.value || !weeklyData.value || weeklyData.value.length === 0) {
+    console.log('Chart描画スキップ: DOM要素またはデータが不足')
+    return
   }
   
-  const ctx = chartContainer.value.getContext('2d')
+  // DOM要素がまだ準備できていない場合は少し待つ
+  if (!chartContainer.value.offsetParent && !chartContainer.value.offsetWidth) {
+    setTimeout(() => drawChart(), 100)
+    return
+  }
   
-  const labels = weeklyData.value.map(week => week.weekNumber)
-  // nullの値はChart.jsではNaNまたはnullとして扱う
-  const data = weeklyData.value.map(week => 
-    week.stageLevel !== null ? week.stageLevel : NaN
-  )
-  const colors = weeklyData.value.map(week => 
-    week.stageLevel !== null ? getStageColor(week.stageLevel) : '#e2e8f0'
-  )
-  
-  chartInstance.value = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'ステージレベル',
-        data: data,
-        borderColor: '#4299e1',
-        backgroundColor: 'rgba(66, 153, 225, 0.1)',
-        borderWidth: 3,
-        pointBackgroundColor: colors,
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointRadius: (context) => {
-          const value = context.parsed.y
-          return !isNaN(value) ? 8 : 0 // nullの場合は点を表示しない
-        },
-        tension: 0.4,
-        fill: false,
-        spanGaps: false // nullの値でグラフを分割
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          filter: function(tooltipItem) {
-            return !isNaN(tooltipItem.parsed.y)
+  try {
+    // 既存のチャートを破棄
+    if (chartInstance.value) {
+      chartInstance.value.destroy()
+      chartInstance.value = null
+    }
+    
+    const ctx = chartContainer.value.getContext('2d')
+    if (!ctx) {
+      console.error('Canvas context取得に失敗')
+      return
+    }
+    
+    const labels = weeklyData.value.map(week => week.weekNumber)
+    // nullの値はChart.jsではNaNまたはnullとして扱う
+    const data = weeklyData.value.map(week => 
+      week.stageLevel !== null ? week.stageLevel : NaN
+    )
+    const colors = weeklyData.value.map(week => 
+      week.stageLevel !== null ? getStageColor(week.stageLevel) : '#e2e8f0'
+    )
+    
+    chartInstance.value = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'ステージレベル',
+          data: data,
+          borderColor: '#4299e1',
+          backgroundColor: 'rgba(66, 153, 225, 0.1)',
+          borderWidth: 3,
+          pointBackgroundColor: colors,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          pointRadius: (context) => {
+            const value = context.parsed.y
+            return !isNaN(value) ? 8 : 0 // nullの場合は点を表示しない
           },
-          callbacks: {
-            title: function(context) {
-              if (!context || context.length === 0) return ''
-              const weekIndex = context[0].dataIndex
-              const week = weeklyData.value[weekIndex]
-              if (!week) return ''
-              return `${week.weekNumber} (${week.dateRange})`
+          tension: 0.4,
+          fill: false,
+          spanGaps: false // nullの値でグラフを分割
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            filter: function(tooltipItem) {
+              return !isNaN(tooltipItem.parsed.y)
             },
-            label: function(context) {
-              const weekIndex = context.dataIndex
-              const week = weeklyData.value[weekIndex]
-              if (!week || week.stageLevel === null || isNaN(context.parsed.y)) {
-                return '記録なし'
+            callbacks: {
+              title: function(context) {
+                if (!context || context.length === 0) return ''
+                const weekIndex = context[0].dataIndex
+                const week = weeklyData.value[weekIndex]
+                if (!week) return ''
+                return `${week.weekNumber} (${week.dateRange})`
+              },
+              label: function(context) {
+                const weekIndex = context.dataIndex
+                const week = weeklyData.value[weekIndex]
+                if (!week || week.stageLevel === null || isNaN(context.parsed.y)) {
+                  return '記録なし'
+                }
+                return [
+                  `ステージレベル: ${week.stageLevel}`,
+                  `説明: ${getStageDescription(week.stageLevel)}`,
+                  `記録日数: ${week.journalCount}/7日`,
+                  `信頼度: ${week.confidence}%`
+                ]
               }
-              return [
-                `ステージレベル: ${week.stageLevel}`,
-                `説明: ${getStageDescription(week.stageLevel)}`,
-                `記録日数: ${week.journalCount}/7日`,
-                `信頼度: ${week.confidence}%`
-              ]
             }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 4,
-          min: 0,
-          ticks: {
-            stepSize: 1,
-            callback: function(value) {
-              if (Number.isInteger(value) && value >= 0 && value <= 4) {
-                return `Stage ${value}`
-              }
-              return ''
-            }
-          },
-          title: {
-            display: true,
-            text: 'ステージレベル'
           }
         },
-        x: {
-          title: {
-            display: true,
-            text: '期間'
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 4,
+            min: 0,
+            ticks: {
+              stepSize: 1,
+              callback: function(value) {
+                if (Number.isInteger(value) && value >= 0 && value <= 4) {
+                  return `Stage ${value}`
+                }
+                return ''
+              }
+            },
+            title: {
+              display: true,
+              text: 'ステージレベル'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: '期間'
+            }
           }
-        }
-      },
-      onClick: (event, elements) => {
-        if (elements && elements.length > 0) {
-          const weekIndex = elements[0].index
-          const week = weeklyData.value[weekIndex]
-          if (week && week.stageLevel !== null) {
-            selectWeek(week)
+        },
+        onClick: (event, elements) => {
+          if (elements && elements.length > 0) {
+            const weekIndex = elements[0].index
+            const week = weeklyData.value[weekIndex]
+            if (week && week.stageLevel !== null) {
+              selectWeek(week)
+            }
           }
         }
       }
-    }
-  })
+    })
+    
+    console.log('Chart描画完了:', weeklyData.value.length, '週分のデータ')
+    
+  } catch (error) {
+    console.error('Chart描画エラー:', error)
+    message.value = 'グラフの描画に失敗しました'
+  }
 }
 
 // 週を選択
@@ -358,20 +380,25 @@ const statistics = computed(() => {
 const loadChart = async () => {
   try {
     if (window.Chart) {
-      drawChart()
+      // DOM要素の準備を待ってから描画
+      await nextTick()
+      if (chartContainer.value && weeklyData.value.length > 0) {
+        drawChart()
+      }
       return
     }
     
     // Chart.jsを動的に読み込み
     const script = document.createElement('script')
     script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js'
-    script.onload = () => {
-      // Chart.jsが読み込まれた後にグラフを描画
+    script.onload = async () => {
+      // Chart.jsが読み込まれた後、DOM準備を待ってから描画
+      await nextTick()
       setTimeout(() => {
-        if (window.Chart && weeklyData.value.length > 0) {
+        if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
           drawChart()
         }
-      }, 100)
+      }, 200)
     }
     script.onerror = () => {
       console.error('Chart.jsの読み込みに失敗しました')
@@ -385,8 +412,9 @@ const loadChart = async () => {
 }
 
 // データ変更を監視
-watch(() => props.journals, () => {
-  if (chartInstance.value && weeklyData.value.length > 0) {
+watch(() => props.journals, async () => {
+  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+    await nextTick()
     drawChart()
   }
 }, { deep: true })
@@ -397,24 +425,29 @@ watch(() => props.currentUser, async () => {
   }
 }, { immediate: true })
 
-watch(weeklyAnalysisData, () => {
+watch(weeklyAnalysisData, async () => {
   // weeklyAnalysisDataが変更されたらチャートを再描画
   if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+    await nextTick()
     drawChart()
   }
 }, { deep: true })
 
-watch(weeklyData, () => {
+watch(weeklyData, async () => {
   // weeklyDataが変更されたらチャートを再描画
   if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+    await nextTick()
     drawChart()
   }
 }, { deep: true })
 
 // マウント時の処理
-onMounted(() => {
-  loadChart()
-  loadWeeklyAnalysisData()
+onMounted(async () => {
+  await nextTick()
+  await loadChart()
+  if (props.currentUser) {
+    await loadWeeklyAnalysisData()
+  }
 })
 </script>
 
