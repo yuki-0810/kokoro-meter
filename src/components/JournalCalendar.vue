@@ -168,6 +168,11 @@ const getDayClass = (dayObj) => {
     classes.push('future-date')
   }
   
+  // ステージレベルに応じたクラス
+  if (dayObj.stageLevel !== null) {
+    classes.push(`stage-${dayObj.stageLevel}`)
+  }
+  
   return classes.join(' ')
 }
 
@@ -237,37 +242,6 @@ const canCreateNewJournal = computed(() => {
   if (selectedJournal.value) return false
   
   return true
-})
-
-// 週次ステージデータを計算
-const weeklyStageData = computed(() => {
-  const weeks = []
-  const daysInGrid = calendarDays.value
-  
-  // カレンダーグリッドを週単位に分割（6週間）
-  for (let weekIndex = 0; weekIndex < 6; weekIndex++) {
-    const weekDays = daysInGrid.slice(weekIndex * 7, (weekIndex + 1) * 7)
-    
-    if (weekDays.length === 0) continue
-    
-    const weekStart = weekDays[0]
-    const weekEnd = weekDays[6]
-    
-    // この週の分析結果を検索
-    const weekStartStr = formatDateToLocalString(getWeekStartDate(new Date(weekStart.dateStr)))
-    const weekAnalysis = weeklyAnalysisResults.value.find(w => w.week_start_date === weekStartStr)
-    
-    weeks.push({
-      weekIndex,
-      startDate: weekStart.dateStr,
-      endDate: weekEnd.dateStr,
-      hasAnalysis: !!weekAnalysis,
-      stageLevel: weekAnalysis?.stage_level || null,
-      days: weekDays
-    })
-  }
-  
-  return weeks
 })
 
 // 今日に移動
@@ -348,48 +322,26 @@ watch(() => props.currentUser, async () => {
       </div>
 
       <!-- カレンダーグリッド -->
-      <div class="calendar-grid-container">
-        <!-- 週次ステージバー -->
-        <div class="weekly-stage-bars">
-          <div 
-            v-for="week in weeklyStageData" 
-            :key="week.weekIndex" 
-            class="week-stage-bar"
-            :class="{ 'has-analysis': week.hasAnalysis }"
-            :style="{ 
-              backgroundColor: week.hasAnalysis ? getStageColor(week.stageLevel) : 'rgba(200, 200, 200, 0.3)',
-              top: `${week.weekIndex * (100 / 6)}%`,
-              height: `${100 / 6}%`
-            }"
-          >
-            <span v-if="week.hasAnalysis" class="stage-label">
-              Stage {{ week.stageLevel }}
-            </span>
-            <span v-else class="stage-label-test" style="color: #666; font-size: 0.7rem;">
-              Week {{ week.weekIndex + 1 }}
-            </span>
-          </div>
-        </div>
-
-        <!-- カレンダーグリッド -->
-        <div class="calendar-grid">
-          <div 
-            v-for="dayObj in calendarDays" 
-            :key="dayObj.dateStr"
-            :class="getDayClass(dayObj)"
-            @click="selectDate(dayObj)"
-          >
-            <div class="day-number">{{ dayObj.day }}</div>
-            <div v-if="dayObj.hasJournal" class="journal-indicator">
-              <div class="journal-dot"></div>
-            </div>
+      <div class="calendar-grid">
+        <div 
+          v-for="dayObj in calendarDays" 
+          :key="dayObj.dateStr"
+          :class="getDayClass(dayObj)"
+          @click="selectDate(dayObj)"
+        >
+          <div class="day-number">{{ dayObj.day }}</div>
+          <div v-if="dayObj.hasJournal" class="journal-indicator">
+            <div 
+              class="stage-dot" 
+              :style="{ backgroundColor: getStageColor(dayObj.stageLevel) }"
+            ></div>
           </div>
         </div>
       </div>
 
       <!-- ステージレベル凡例 -->
       <div class="legend">
-        <h4>週次ステージレベル凡例:</h4>
+        <h4>ステージレベル凡例:</h4>
         <div class="legend-items-horizontal">
           <div class="legend-item">
             <div class="legend-dot" :style="{ backgroundColor: getStageColor(0) }"></div>
@@ -412,7 +364,6 @@ watch(() => props.currentUser, async () => {
             <span>Stage 4: 危険域</span>
           </div>
         </div>
-        <p class="legend-note">横のバーは各週の分析結果を表示します</p>
       </div>
     </div>
 
@@ -577,55 +528,11 @@ watch(() => props.currentUser, async () => {
   font-size: 0.875rem;
 }
 
-.calendar-grid-container {
-  position: relative;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  background: #e2e8f0;
-  border-radius: 8px;
-  overflow: hidden;
-  min-height: 510px; /* 6週間 × 85px */
-}
-
-.weekly-stage-bars {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.week-stage-bar {
-  height: calc(100% / 6); /* 6週間分で均等分割 */
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding-left: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: white;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
-  position: absolute;
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: 0;
-  margin: 0;
-  opacity: 1;
-  border-left: 4px solid rgba(255, 255, 255, 0.4);
-  border-right: 4px solid rgba(255, 255, 255, 0.2);
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(2px);
-}
-
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
   background: #e2e8f0;
-  position: relative;
-  z-index: 1;
 }
 
 .calendar-day {
@@ -638,7 +545,6 @@ watch(() => props.currentUser, async () => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  z-index: 1;
 }
 
 .calendar-day:hover {
@@ -682,7 +588,7 @@ watch(() => props.currentUser, async () => {
   margin-top: 0.25rem;
 }
 
-.journal-dot {
+.stage-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -704,35 +610,22 @@ watch(() => props.currentUser, async () => {
 
 .legend-items-horizontal {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0.75rem;
-  justify-content: center;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.7rem;
+  gap: 0.5rem;
+  font-size: 0.8rem;
   color: #4a5568;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-note {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-align: center;
-  font-style: italic;
 }
 
 .journal-detail {
@@ -908,17 +801,15 @@ watch(() => props.currentUser, async () => {
 
   .legend-items-horizontal {
     gap: 0.5rem;
-    justify-content: flex-start;
-    padding: 0 0.5rem;
   }
 
   .legend-item {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
   }
 
   .legend-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   .detail-header {
