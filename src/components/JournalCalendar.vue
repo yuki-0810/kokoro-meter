@@ -11,6 +11,14 @@ const props = defineProps({
 // Emits
 const emit = defineEmits(['navigateToJournal'])
 
+// 地域時間で日付文字列を生成する関数
+const formatDateToLocalString = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // 現在の日付状態
 const currentDate = ref(new Date())
 const selectedDate = ref(formatDateToLocalString(new Date())) // 文字列として初期化
@@ -25,14 +33,6 @@ const monthNames = [
 ]
 
 const dayNames = ['日', '月', '火', '水', '木', '金', '土']
-
-// 地域時間で日付文字列を生成する関数
-const formatDateToLocalString = (date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 // 計算されたプロパティ
 const currentYear = computed(() => currentDate.value.getFullYear())
