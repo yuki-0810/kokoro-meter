@@ -13,7 +13,7 @@ const emit = defineEmits(['navigateToJournal'])
 
 // 現在の日付状態
 const currentDate = ref(new Date())
-const selectedDate = ref(new Date()) // デフォルトで今日を選択
+const selectedDate = ref(formatDateToLocalString(new Date())) // 文字列として初期化
 const selectedJournal = ref(null)
 const isLoading = ref(false)
 const message = ref('')
@@ -230,6 +230,31 @@ const goToToday = () => {
     message.value = ''
   }
 }
+
+// 初期化処理
+onMounted(() => {
+  // 今日の日記を初期選択
+  const today = formatDateToLocalString(new Date())
+  selectedDate.value = today
+  
+  // journalsが既に読み込まれている場合は今日の日記を設定
+  if (props.journals) {
+    const todayJournal = props.journals.find(j => {
+      const entryDate = j.entry_date || (j.created_at ? j.created_at.split('T')[0] : null)
+      return entryDate === today
+    })
+    selectedJournal.value = todayJournal || null
+  }
+})
+
+// journalsが変更されたときに選択中の日記を更新
+watch(() => props.journals, () => {
+  if (selectedDate.value && journalMap.value.has(selectedDate.value)) {
+    selectedJournal.value = journalMap.value.get(selectedDate.value)
+  } else {
+    selectedJournal.value = null
+  }
+}, { deep: true })
 </script>
 
 <template>
@@ -356,7 +381,7 @@ const goToToday = () => {
       </div>
 
       <div v-else class="no-journal">
-        <div v-if="selectedDate <= todayDateString">
+        <div v-if="selectedDate <= todayDateString.value">
           <p>この日には日記が記録されていません。</p>
           <button @click="navigateToJournal(selectedDate)" class="btn btn-primary write-journal-btn">
             📝 日記を書く

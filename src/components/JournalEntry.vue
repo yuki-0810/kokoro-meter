@@ -362,15 +362,19 @@ const editTodayJournal = () => {
           <div class="analysis-tags">
             <div v-if="selectedDateJournal.ai_metadata.detected_emotions" class="tag-group">
               <span class="tag-label">感情:</span>
-              <span v-for="emotion in selectedDateJournal.ai_metadata.detected_emotions" :key="emotion" class="emotion-tag">
-                {{ emotion }}
-              </span>
+              <div class="tag-items">
+                <span v-for="emotion in selectedDateJournal.ai_metadata.detected_emotions" :key="emotion" class="emotion-tag">
+                  {{ emotion }}
+                </span>
+              </div>
             </div>
             <div v-if="selectedDateJournal.ai_metadata.key_events" class="tag-group">
               <span class="tag-label">出来事:</span>
-              <span v-for="event in selectedDateJournal.ai_metadata.key_events" :key="event" class="event-tag">
-                {{ event }}
-              </span>
+              <div class="tag-items">
+                <span v-for="event in selectedDateJournal.ai_metadata.key_events" :key="event" class="event-tag">
+                  {{ event }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -563,6 +567,13 @@ const editTodayJournal = () => {
 
 .tag-group {
   display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tag-items {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
@@ -572,6 +583,7 @@ const editTodayJournal = () => {
   font-weight: 500;
   color: #4a5568;
   font-size: 0.875rem;
+  flex-shrink: 0;
 }
 
 .emotion-tag, .event-tag {
@@ -871,6 +883,10 @@ const editTodayJournal = () => {
   .tag-group {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.25rem;
+  }
+  
+  .tag-items {
     gap: 0.25rem;
   }
 }
