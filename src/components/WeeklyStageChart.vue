@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { 
   analyzeJournalForStage,
   generateActiveRestRecommendations 
@@ -22,6 +22,7 @@ const selectedWeekRecommendations = ref(null)
 const chartContainer = ref(null)
 const chartInstance = ref(null)
 const weeklyAnalysisData = ref([])
+const isDrawing = ref(false) // 描画中フラグを追加
 
 // 週単位の日付計算ヘルパー関数（日曜日起点）
 const getWeekStartDate = (date = new Date()) => {
@@ -161,33 +162,59 @@ const getStageDescription = (level) => {
 
 // Chart.jsでグラフを描画
 const drawChart = () => {
+  // 描画中の場合は重複実行を防ぐ
+  if (isDrawing.value) {
+    console.log('Chart描画スキップ: 既に描画中')
+    return
+  }
+  
   // DOM要素とデータの存在確認を強化
   if (!chartContainer.value || !weeklyData.value || weeklyData.value.length === 0) {
     console.log('Chart描画スキップ: DOM要素またはデータが不足')
     return
   }
   
-  // DOM要素がまだ準備できていない場合は少し待つ
-  if (!chartContainer.value.offsetParent && !chartContainer.value.offsetWidth) {
-    setTimeout(() => drawChart(), 100)
+  // Canvas要素の詳細チェック
+  if (!chartContainer.value.getContext || !chartContainer.value.offsetParent) {
+    console.log('Chart描画スキップ: Canvas要素が未準備')
+    setTimeout(() => drawChart(), 200)
     return
   }
   
+  isDrawing.value = true
+  
   try {
-    // 既存のチャートを破棄
+    // 既存のチャートを安全に破棄
     if (chartInstance.value) {
-      chartInstance.value.destroy()
+      try {
+        chartInstance.value.destroy()
+      } catch (destroyError) {
+        console.warn('Chart破棄エラー:', destroyError)
+      }
       chartInstance.value = null
     }
     
-    const ctx = chartContainer.value.getContext('2d')
-    if (!ctx) {
-      console.error('Canvas context取得に失敗')
+    // Canvas contextの取得を再試行
+    let ctx = null
+    try {
+      ctx = chartContainer.value.getContext('2d')
+    } catch (contextError) {
+      console.error('Canvas context取得エラー:', contextError)
+      isDrawing.value = false
       return
     }
     
+    if (!ctx) {
+      console.error('Canvas context取得に失敗')
+      isDrawing.value = false
+      return
+    }
+    
+    // Canvas をクリア
+    ctx.clearRect(0, 0, chartContainer.value.width, chartContainer.value.height)
+    
     const labels = weeklyData.value.map(week => week.weekNumber)
-    // nullの値はChart.jsではNaNまたはnullとして扱う
+    // nullの値はChart.jsではNaNとして扱う
     const data = weeklyData.value.map(week => 
       week.stageLevel !== null ? week.stageLevel : NaN
     )
@@ -210,16 +237,19 @@ const drawChart = () => {
           pointBorderWidth: 2,
           pointRadius: (context) => {
             const value = context.parsed.y
-            return !isNaN(value) ? 8 : 0 // nullの場合は点を表示しない
+            return !isNaN(value) ? 8 : 0
           },
           tension: 0.4,
           fill: false,
-          spanGaps: false // nullの値でグラフを分割
+          spanGaps: false
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          duration: 0 // アニメーションを無効化してパフォーマンス向上
+        },
         interaction: {
           intersect: false,
           mode: 'index'
@@ -299,6 +329,8 @@ const drawChart = () => {
   } catch (error) {
     console.error('Chart描画エラー:', error)
     message.value = 'グラフの描画に失敗しました'
+  } finally {
+    isDrawing.value = false
   }
 }
 
@@ -382,9 +414,12 @@ const loadChart = async () => {
     if (window.Chart) {
       // DOM要素の準備を待ってから描画
       await nextTick()
-      if (chartContainer.value && weeklyData.value.length > 0) {
-        drawChart()
-      }
+      // 遅延を追加してDOM要素が確実に準備されるのを待つ
+      setTimeout(() => {
+        if (chartContainer.value && weeklyData.value.length > 0 && !isDrawing.value) {
+          drawChart()
+        }
+      }, 300)
       return
     }
     
@@ -392,13 +427,13 @@ const loadChart = async () => {
     const script = document.createElement('script')
     script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js'
     script.onload = async () => {
-      // Chart.jsが読み込まれた後、DOM準備を待ってから描画
+      // Chart.jsが読み込まれた後、DOM準備を確実に待つ
       await nextTick()
       setTimeout(() => {
-        if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+        if (window.Chart && chartContainer.value && weeklyData.value.length > 0 && !isDrawing.value) {
           drawChart()
         }
-      }, 200)
+      }, 300)
     }
     script.onerror = () => {
       console.error('Chart.jsの読み込みに失敗しました')
@@ -413,9 +448,9 @@ const loadChart = async () => {
 
 // データ変更を監視
 watch(() => props.journals, async () => {
-  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+  if (!isDrawing.value && window.Chart && chartContainer.value && weeklyData.value.length > 0) {
     await nextTick()
-    drawChart()
+    setTimeout(() => drawChart(), 100) // 短い遅延で重複を防ぐ
   }
 }, { deep: true })
 
@@ -427,17 +462,9 @@ watch(() => props.currentUser, async () => {
 
 watch(weeklyAnalysisData, async () => {
   // weeklyAnalysisDataが変更されたらチャートを再描画
-  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
+  if (!isDrawing.value && window.Chart && chartContainer.value && weeklyData.value.length > 0) {
     await nextTick()
-    drawChart()
-  }
-}, { deep: true })
-
-watch(weeklyData, async () => {
-  // weeklyDataが変更されたらチャートを再描画
-  if (window.Chart && chartContainer.value && weeklyData.value.length > 0) {
-    await nextTick()
-    drawChart()
+    setTimeout(() => drawChart(), 100)
   }
 }, { deep: true })
 
@@ -447,6 +474,14 @@ onMounted(async () => {
   await loadChart()
   if (props.currentUser) {
     await loadWeeklyAnalysisData()
+  }
+})
+
+// アンマウント時の処理
+onUnmounted(() => {
+  if (chartInstance.value) {
+    chartInstance.value.destroy()
+    chartInstance.value = null
   }
 })
 </script>
@@ -475,7 +510,12 @@ onMounted(async () => {
 
     <!-- チャート表示 -->
     <div class="chart-container">
-      <canvas ref="chartContainer" width="800" height="400"></canvas>
+      <canvas 
+        ref="chartContainer" 
+        id="weekly-stage-chart"
+        width="800" 
+        height="400"
+      ></canvas>
     </div>
 
     <!-- 週次データテーブル -->
