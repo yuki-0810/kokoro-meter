@@ -386,7 +386,7 @@ watch(() => props.currentUser, async () => {
 
       <!-- ステージレベル凡例 -->
       <div class="legend">
-        <h4>ステージレベル凡例:</h4>
+        <h4>週次ステージレベル凡例:</h4>
         <div class="legend-items-horizontal">
           <div class="legend-item">
             <div class="legend-dot" :style="{ backgroundColor: getStageColor(0) }"></div>
@@ -409,6 +409,7 @@ watch(() => props.currentUser, async () => {
             <span>Stage 4: 危険域</span>
           </div>
         </div>
+        <p class="legend-note">横のバーは各週の分析結果を表示します</p>
       </div>
     </div>
 
@@ -596,17 +597,20 @@ watch(() => props.currentUser, async () => {
   height: calc(100% / 6); /* 6週間分で均等分割 */
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-left: 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: white;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
   position: absolute;
   width: 100%;
   box-sizing: border-box;
-  border-radius: 4px;
-  margin: 1px 0;
-  opacity: 0.85;
+  border-radius: 0;
+  margin: 0;
+  opacity: 0.9;
+  border-left: 4px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(1px);
 }
 
 .calendar-grid {
@@ -620,7 +624,7 @@ watch(() => props.currentUser, async () => {
 
 .calendar-day {
   background: white;
-  min-height: 80px;
+  min-height: 85px;
   padding: 0.5rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -709,6 +713,14 @@ watch(() => props.currentUser, async () => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+}
+
+.legend-note {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: center;
+  font-style: italic;
 }
 
 .journal-detail {

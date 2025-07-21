@@ -314,7 +314,7 @@ const navigateToJournal = () => {
 
     <!-- 現在のメンタルステージ -->
     <div v-if="currentStage !== null" class="current-stage">
-      <h2>🧠 現在のメンタルステージ</h2>
+      <h2 class="section-title">🧠 現在のメンタルステージ</h2>
       <div class="stage-display-center">
         <div class="stage-circle" :style="{ backgroundColor: stageColor }">
           <span class="stage-number">{{ currentStage }}</span>
@@ -347,8 +347,8 @@ const navigateToJournal = () => {
 
     <!-- アクティブレスト提案 -->
     <div v-if="currentStage !== null" class="active-rest">
-      <h2 v-if="isGeneratingRecommendations">🎯 今のあなたに最適な休養法 <span class="analyzing">分析中...</span></h2>
-      <h2 v-else-if="activeRestRecommendations">🎯 今のあなたに最適な休養法</h2>
+      <h2 v-if="isGeneratingRecommendations" class="section-title">🎯 今のあなたに最適な休養法 <span class="analyzing">分析中...</span></h2>
+      <h2 v-else-if="activeRestRecommendations" class="section-title">🎯 今のあなたに最適な休養法</h2>
       
       <div v-if="isGeneratingRecommendations" class="analyzing-message">
         <div class="spinner">⏳</div>
@@ -468,6 +468,14 @@ const navigateToJournal = () => {
   color: #2d3748;
   margin-bottom: 1rem;
   font-size: 1.25rem;
+}
+
+.section-title {
+  text-align: center;
+  margin-bottom: 1rem;
+  color: #2d3748;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .stage-display {

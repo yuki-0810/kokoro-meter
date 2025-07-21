@@ -490,7 +490,7 @@ onUnmounted(() => {
   <div class="weekly-stage-chart">
     <!-- 推移グラフのタイトル -->
     <div class="chart-title">
-      <h3>📈 これまでの分析結果</h3>
+      <h2 class="section-title">📈 これまでの分析結果</h2>
     </div>
 
     <!-- チャート表示 -->
@@ -634,10 +634,18 @@ onUnmounted(() => {
   margin-bottom: 1.5rem;
 }
 
-.chart-title h3 {
+.chart-title h2 {
   color: #2d3748;
   margin: 0;
   font-size: 1.125rem;
+}
+
+.section-title {
+  text-align: center;
+  margin-bottom: 1rem;
+  color: #2d3748;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .chart-header {
